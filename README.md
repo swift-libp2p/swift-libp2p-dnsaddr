@@ -1,4 +1,4 @@
-# LibP2PDNSAddr (Embedded)
+# LibP2PDNSAddr
 
 [![](https://img.shields.io/badge/made%20by-Breth-blue.svg?style=flat-square)](https://breth.app)
 [![](https://img.shields.io/badge/project-libp2p-yellow.svg?style=flat-square)](http://libp2p.io/)
