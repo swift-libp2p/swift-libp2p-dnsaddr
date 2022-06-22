@@ -74,25 +74,25 @@ final class LibP2PDNSAddrTests: XCTestCase {
     ///         DNS.HostRecord<DNS.IPv4>(name: "h.root-servers.net.", unique: false, internetClass: A, ttl: 3547432, ip: 198.97.190.53)
     ///     ]
     /// )
-    func testUDP_DNS_Serivce_Query() throws {
-        /// 192.168.1.1:53 UDP is the local networks router DNS portal (change this to match your network setup)
-        let remoteAddress = try! SocketAddress(ipAddress: "192.168.1.1", port: 53)
-        //let remoteAddress = try! SocketAddress(ipAddress: "162.159.26.4", port: 53)
-        let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
-        
-        let bootstrap = DatagramBootstrap(group: group)
-            // Enable SO_REUSEADDR.
-            .channelOption(ChannelOptions.socketOption(.so_reuseaddr), value: 1)
-            .channelInitializer { channel in
-                channel.pipeline.addHandler(DNSHandler(remoteAddress: remoteAddress))
-        }
-        
-        let channel = try bootstrap.bind(host: "192.168.1.15", port: 1234).wait()
-        
-        try channel.closeFuture.wait()
-        
-        try! group.syncShutdownGracefully()
-    }
+//    func testUDP_DNS_Serivce_Query() throws {
+//        /// 192.168.1.1:53 UDP is the local networks router DNS portal (change this to match your network setup)
+//        let remoteAddress = try! SocketAddress(ipAddress: "192.168.1.1", port: 53)
+//        //let remoteAddress = try! SocketAddress(ipAddress: "162.159.26.4", port: 53)
+//        let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+//
+//        let bootstrap = DatagramBootstrap(group: group)
+//            // Enable SO_REUSEADDR.
+//            .channelOption(ChannelOptions.socketOption(.so_reuseaddr), value: 1)
+//            .channelInitializer { channel in
+//                channel.pipeline.addHandler(DNSHandler(remoteAddress: remoteAddress))
+//        }
+//        
+//        let channel = try bootstrap.bind(host: "192.168.1.15", port: 1234).wait()
+//
+//        try channel.closeFuture.wait()
+//
+//        try! group.syncShutdownGracefully()
+//    }
     
     private final class DNSHandler: ChannelInboundHandler {
         public typealias InboundIn = AddressedEnvelope<ByteBuffer>
