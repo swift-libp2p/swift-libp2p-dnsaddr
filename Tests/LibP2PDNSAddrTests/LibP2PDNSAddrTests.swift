@@ -259,7 +259,7 @@ final class LibP2PDNSAddrTests: XCTestCase {
     }
 
     static var allTests = [
-        ("testUDP_DNS_Serivce_Query", testUDP_DNS_Serivce_Query),
+        //("testUDP_DNS_Serivce_Query", testUDP_DNS_Serivce_Query),
         ("testDNSTextRecordQuery", testDNSTextRecordQuery),
         ("testDNSADDRToMultiaddr_IPv4_TCP", testDNSADDRToMultiaddr_IPv4_TCP),
         ("testDNSADDRToMultiaddr_IPv4_UDP", testDNSADDRToMultiaddr_IPv4_UDP),
