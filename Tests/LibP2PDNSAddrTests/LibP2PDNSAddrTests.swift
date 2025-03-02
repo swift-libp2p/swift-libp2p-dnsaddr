@@ -19,6 +19,7 @@ import XCTest
 @testable import LibP2PDNSAddr
 
 final class LibP2PDNSAddrTests: XCTestCase {
+    #if canImport(dnssd)
     func testDNSTextRecordQuery() throws {
         let firstResolution = DNSAddr.query(domainName: "_dnsaddr.bootstrap.libp2p.io")
         print(firstResolution ?? "NIL")
@@ -106,4 +107,5 @@ final class LibP2PDNSAddrTests: XCTestCase {
 
         XCTAssertEqual(resolvedAddress, try! Multiaddr(expectedAddress))
     }
+    #endif
 }

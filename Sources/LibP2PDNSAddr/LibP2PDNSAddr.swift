@@ -72,6 +72,10 @@ public final class DNSAddr: AddressResolver {
     }
 
     static func resolve(address ma: Multiaddr) -> [Multiaddr]? {
+        #if !canImport(dnssd)
+        app.logger.error("LibP2PDNSAddr is not supported on non darwin machines yet")
+        return nil
+        #else
         /// Only proceed if the Mutliaddr is a dnsaddr proto and has a p2p peerID present
         guard ma.addresses.first?.codec == .dnsaddr, let domain = ma.addresses.first?.addr, let pid = ma.getPeerID()
         else {
@@ -123,17 +127,21 @@ public final class DNSAddr: AddressResolver {
         } else {
             return nil
         }
+        #endif
     }
 
     //private func fetchTextRecords(_ ma:Multiaddr)
-
-    ///
+    
     /// This method actually performs the DNS Text Record Query using the standard DNS library `dnssd`
     /// - Note: The Key Value dictionary that this method returns is kinda backwards. Due to their being multiple of the same text records, `dnsaddr` in this case, we save the value as the unique key and the record type as the value.
     /// - Instead of this: ["dnsaddr": "/ip4/147.75.109.213/udp/4001/quic/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN"]
     /// - We return this:  ["/ip4/147.75.109.213/udp/4001/quic/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN": "dnsaddr"]
     /// - Note: I grabbed this code from this gist (https://gist.github.com/fikeminkel/a9c4bc4d0348527e8df3690e242038d3)
     static func query(domainName: String) -> [String: String]? {
+        #if !canImport(dnssd)
+        app.logger.error("LibP2PDNSAddr is not supported on non darwin machines yet")
+        return nil
+        #else
         var result: [String: String] = [:]
         var recordHandler: ([String: String]?) -> Void = {
             (record) -> Void in
@@ -185,6 +193,7 @@ public final class DNSAddr: AddressResolver {
         DNSServiceRefDeallocate(serviceRef.pointee)
 
         return result
+        #endif
     }
 }
 
