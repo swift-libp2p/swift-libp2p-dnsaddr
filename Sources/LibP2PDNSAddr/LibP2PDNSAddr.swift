@@ -13,7 +13,10 @@
 //===----------------------------------------------------------------------===//
 
 import LibP2P
+
+#if canImport(dnssd)
 import dnssd
+#endif
 
 public final class DNSAddr: AddressResolver {
     public static var key: String = "DNSADDR"
