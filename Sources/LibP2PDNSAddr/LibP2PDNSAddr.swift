@@ -131,7 +131,7 @@ public final class DNSAddr: AddressResolver {
     }
 
     //private func fetchTextRecords(_ ma:Multiaddr)
-    
+
     /// This method actually performs the DNS Text Record Query using the standard DNS library `dnssd`
     /// - Note: The Key Value dictionary that this method returns is kinda backwards. Due to their being multiple of the same text records, `dnsaddr` in this case, we save the value as the unique key and the record type as the value.
     /// - Instead of this: ["dnsaddr": "/ip4/147.75.109.213/udp/4001/quic/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN"]
