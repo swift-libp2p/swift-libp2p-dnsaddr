@@ -84,6 +84,7 @@ public final class DNSAddr: AddressResolver {
         let dnsAddrPrefix = "_dnsaddr."
 
         let firstResolution = query(domainName: dnsAddrPrefix + domain)
+        print(firstResolution)
 
         /// This might resolve to a few different Multiaddr, but if we cant find a MA with the same peerID we bail...
         guard
@@ -107,9 +108,9 @@ public final class DNSAddr: AddressResolver {
             return [hostMA]
         }
 
-        //print("Attempting to resolve `\(dnsAddrPrefix + domain2)`")
+        print("Attempting to resolve `\(dnsAddrPrefix + domain2)`")
         let secondResolution = query(domainName: dnsAddrPrefix + domain2)
-        //print(secondResolution)
+        print(secondResolution)
 
         let addresses = secondResolution?.compactMap({ key, val -> Multiaddr? in
             /// Ensure its a valid multiaddr
