@@ -78,6 +78,7 @@ public final class DNSAddr: AddressResolver {
         /// Only proceed if the Mutliaddr is a dnsaddr proto and has a p2p peerID present
         guard ma.addresses.first?.codec == .dnsaddr, let domain = ma.addresses.first?.addr, let pid = ma.getPeerID()
         else {
+            print("Error: Multiaddr isn't dnsaddr comppatible.")
             return nil
         }
         let dnsAddrPrefix = "_dnsaddr."
@@ -91,13 +92,11 @@ public final class DNSAddr: AddressResolver {
             })
         else {
             print("Error: Failed to find host during first round of DNS TXT Resolution")
-            //print("PeerID: \(pid)")
-            //print(firstResolution)
             return nil
         }
 
         guard let hostMA = try? Multiaddr(host.key) else {
-            print("Error: Failed to instantiated Multiaddress from dnsaddr text record.")
+            print("Error: Failed to instantiate Multiaddress from dnsaddr text record.")
             return nil
         }
 
@@ -114,9 +113,15 @@ public final class DNSAddr: AddressResolver {
 
         let addresses = secondResolution?.compactMap({ key, val -> Multiaddr? in
             /// Ensure its a valid multiaddr
-            guard let ma = try? Multiaddr(key) else { return nil }
+            guard let ma = try? Multiaddr(key) else {
+                print("Error: Invalid Multiaddr -> \(key).")
+                return nil
+            }
             /// Ensure the PeerID is present and equals that of the original multiaddr
-            guard ma.getPeerID() == pid else { return nil }
+            guard let ogPeerID = ma.getPeerID(), ogPeerID == pid else {
+                print("Error: PeerID Mismatch -> \(pid) != \(ma.getPeerID() ?? "NIL").")
+                return nil
+            }
             /// return the multiaddr
             return ma
         })
@@ -124,6 +129,7 @@ public final class DNSAddr: AddressResolver {
         if let addresses = addresses, !addresses.isEmpty {
             return addresses
         } else {
+            print("Error: No Addresses Resolved")
             return nil
         }
     }
