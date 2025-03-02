@@ -76,7 +76,7 @@ public final class DNSAddr: AddressResolver {
 
     static func resolve(address ma: Multiaddr) -> [Multiaddr]? {
         #if !canImport(dnssd)
-        application.logger.error("LibP2PDNSAddr is not supported on non darwin machines yet")
+        print("LibP2PDNSAddr is not supported on non darwin machines yet")
         return nil
         #else
         /// Only proceed if the Mutliaddr is a dnsaddr proto and has a p2p peerID present
@@ -142,7 +142,7 @@ public final class DNSAddr: AddressResolver {
     /// - Note: I grabbed this code from this gist (https://gist.github.com/fikeminkel/a9c4bc4d0348527e8df3690e242038d3)
     static func query(domainName: String) -> [String: String]? {
         #if !canImport(dnssd)
-        application.logger.error("LibP2PDNSAddr is not supported on non darwin machines yet")
+        print("LibP2PDNSAddr is not supported on non darwin machines yet")
         return nil
         #else
         var result: [String: String] = [:]
