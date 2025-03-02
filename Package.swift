@@ -19,20 +19,21 @@ let package = Package(
     name: "swift-libp2p-dnsaddr",
     platforms: [
         .macOS(.v10_15),
-        .iOS(.v13)
+        .iOS(.v13),
     ],
     products: [
         // Products define the executables and libraries a package produces, and make them visible to other packages.
         .library(
             name: "LibP2PDNSAddr",
-            targets: ["LibP2PDNSAddr"]),
+            targets: ["LibP2PDNSAddr"]
+        )
     ],
     dependencies: [
         // Dependencies declare other packages that this package depends on.
-        
+
         // LibP2P Core Modules
         .package(url: "https://github.com/swift-libp2p/swift-libp2p.git", .upToNextMajor(from: "0.1.0")),
-        
+
         // DNS Support
         .package(url: "https://github.com/Bouke/DNS.git", from: "1.0.0"),
     ],
@@ -44,9 +45,11 @@ let package = Package(
             dependencies: [
                 .product(name: "LibP2P", package: "swift-libp2p"),
                 .product(name: "DNS", package: "DNS"),
-            ]),
+            ]
+        ),
         .testTarget(
             name: "LibP2PDNSAddrTests",
-            dependencies: ["LibP2PDNSAddr"]),
+            dependencies: ["LibP2PDNSAddr"]
+        ),
     ]
 )
