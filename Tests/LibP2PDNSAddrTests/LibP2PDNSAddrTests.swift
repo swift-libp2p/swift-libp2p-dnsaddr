@@ -50,12 +50,19 @@ final class LibP2PDNSAddrTests: XCTestCase {
         let address = "/dnsaddr/bootstrap.libp2p.io/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN"
         let expectedAddress = "/ip4/139.178.91.71/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN"
 
-        do {
-            let resolvedAddress = DNSAddr.resolve(address: try Multiaddr(address), for: [.ip4, .tcp])
-            XCTAssertEqual(resolvedAddress, try Multiaddr(expectedAddress))
-        } catch {
-            XCTFail("\(error)")
+        let resolvedExpectation = expectation(description: "DNSAddrResolved")
+
+        DispatchQueue.global(qos: .userInteractive).async {
+            do {
+                let resolvedAddress = DNSAddr.resolve(address: try Multiaddr(address), for: [.ip4, .tcp])
+                XCTAssertEqual(resolvedAddress, try Multiaddr(expectedAddress))
+            } catch {
+                XCTFail("\(error)")
+            }
+            resolvedExpectation.fulfill()
         }
+
+        waitForExpectations(timeout: 3)
     }
 
     func testDNSADDRToMultiaddr_IPv4_UDP() throws {
