@@ -75,10 +75,6 @@ public final class DNSAddr: AddressResolver {
     }
 
     static func resolve(address ma: Multiaddr) -> [Multiaddr]? {
-        #if !canImport(dnssd)
-        print("LibP2PDNSAddr is not supported on non darwin machines yet")
-        return nil
-        #else
         /// Only proceed if the Mutliaddr is a dnsaddr proto and has a p2p peerID present
         guard ma.addresses.first?.codec == .dnsaddr, let domain = ma.addresses.first?.addr, let pid = ma.getPeerID()
         else {
@@ -130,7 +126,6 @@ public final class DNSAddr: AddressResolver {
         } else {
             return nil
         }
-        #endif
     }
 
     //private func fetchTextRecords(_ ma:Multiaddr)
