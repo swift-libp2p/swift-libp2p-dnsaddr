@@ -21,7 +21,7 @@
 ## Overview
 dnsaddr is a protocol that instructs the resolver to lookup multiaddr(s) in DNS TXT records for the domain name in it's value section.
 
-This package add the ability to resolves multiaddr's of the form 
+This package adds the ability to resolves multiaddr's of the form 
 
 ```Swift
 Multiaddr("/dnsaddr/bootstrap.libp2p.io/p2p/QmQCU2EcMqAqQPR2i9bChDtGNJchTbq5TbXJJ16u19uLTa")
