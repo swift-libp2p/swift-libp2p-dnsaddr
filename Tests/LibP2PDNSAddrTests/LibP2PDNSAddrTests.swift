@@ -276,15 +276,4 @@ final class LibP2PDNSAddrTests: XCTestCase {
 
         XCTAssertEqual(resolvedAddress, try! Multiaddr(expectedAddress))
     }
-
-    static var allTests = [
-        //("testUDP_DNS_Serivce_Query", testUDP_DNS_Serivce_Query),
-        ("testDNSTextRecordQuery", testDNSTextRecordQuery),
-        ("testDNSADDRToMultiaddr_IPv4_TCP", testDNSADDRToMultiaddr_IPv4_TCP),
-        ("testDNSADDRToMultiaddr_IPv4_UDP", testDNSADDRToMultiaddr_IPv4_UDP),
-        ("testDNSADDRToMultiaddr_IPv6_TCP", testDNSADDRToMultiaddr_IPv6_TCP),
-        ("testDNSADDRToMultiaddr_IPv6_UDP", testDNSADDRToMultiaddr_IPv6_UDP),
-        ("testDNSADDRToMultiaddr_DNS4_TCP_WSS", testDNSADDRToMultiaddr_DNS4_TCP_WSS),
-        ("testDNSADDRToMultiaddr_DNS6_TCP_WSS", testDNSADDRToMultiaddr_DNS6_TCP_WSS),
-    ]
 }
