@@ -94,7 +94,6 @@ class DNSRecordResolver {
     }
 
     private func stopQuery() {
-
         // be nice and clean things up
         self.timeoutTimer?.cancel()
         self.dispatchSourceRead?.cancel()

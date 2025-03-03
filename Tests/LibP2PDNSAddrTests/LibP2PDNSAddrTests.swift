@@ -182,26 +182,30 @@ final class LibP2PDNSAddrTests: XCTestCase {
         let resolvedExpectation1 = expectation(description: "DNSAddrResolved")
         let resolvedExpectation2 = expectation(description: "DNSAddrResolved")
 
-        let resolver1 = DNSRecordResolver()
-        resolver1.resolve(query: domainToResolve) { result1 in
-            switch result1 {
-            case .success(let txtRecord):
-                print(txtRecord.TXTRecords)
-            case .failure(let error):
-                XCTFail("Error: \(error)")
+        DispatchQueue.global().async {
+            let resolver1 = DNSRecordResolver()
+            resolver1.resolve(query: domainToResolve) { result1 in
+                switch result1 {
+                case .success(let txtRecord):
+                    print(txtRecord.TXTRecords)
+                case .failure(let error):
+                    XCTFail("Error: \(error)")
+                }
+                resolvedExpectation1.fulfill()
             }
-            resolvedExpectation1.fulfill()
         }
 
-        let resolver2 = DNSRecordResolver()
-        resolver2.resolve(query: "_dnsaddr.sv15.bootstrap.libp2p.io") { result2 in
-            switch result2 {
-            case .success(let txtRecord):
-                print(txtRecord.TXTRecords)
-            case .failure(let error):
-                XCTFail("Error: \(error)")
+        DispatchQueue.global().async {
+            let resolver2 = DNSRecordResolver()
+            resolver2.resolve(query: "_dnsaddr.sv15.bootstrap.libp2p.io") { result2 in
+                switch result2 {
+                case .success(let txtRecord):
+                    print(txtRecord.TXTRecords)
+                case .failure(let error):
+                    XCTFail("Error: \(error)")
+                }
+                resolvedExpectation2.fulfill()
             }
-            resolvedExpectation2.fulfill()
         }
 
         waitForExpectations(timeout: 3)
