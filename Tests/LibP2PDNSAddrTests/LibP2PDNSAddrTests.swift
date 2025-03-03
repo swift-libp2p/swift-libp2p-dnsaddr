@@ -168,7 +168,7 @@ final class LibP2PDNSAddrTests: XCTestCase {
     //        waitForExpectations(timeout: 3)
     //    }
 
-    func testResolveDNSADDR() throws {
+    func testResolveDNSADDR_Base() throws {
         let address = "/dnsaddr/bootstrap.libp2p.io/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN"
 
         let ma = try Multiaddr(address)
@@ -179,36 +179,44 @@ final class LibP2PDNSAddrTests: XCTestCase {
         let dnsAddrPrefix = "_dnsaddr."
         let domainToResolve = dnsAddrPrefix + domain
 
-        let resolvedExpectation1 = expectation(description: "DNSAddrResolved")
-        let resolvedExpectation2 = expectation(description: "DNSAddrResolved")
+        let resolvedExpectation = expectation(description: "DNSAddrResolved")
 
         DispatchQueue.global().async {
-            let resolver1 = DNSRecordResolver()
-            resolver1.resolve(query: domainToResolve) { result1 in
-                switch result1 {
+            let resolver = DNSRecordResolver()
+            resolver.resolve(query: domainToResolve) { result in
+                switch result {
                 case .success(let txtRecord):
                     print(txtRecord.TXTRecords)
+                    XCTAssertGreaterThan(txtRecord.TXTRecords.count, 0)
                 case .failure(let error):
                     XCTFail("Error: \(error)")
                 }
-                resolvedExpectation1.fulfill()
+                resolvedExpectation.fulfill()
             }
         }
 
+        waitForExpectations(timeout: 5.0)
+    }
+
+    func testResolveDNSADDR_Second() throws {
+        let domainToResolve = "_dnsaddr.sv15.bootstrap.libp2p.io"
+
+        let resolvedExpectation = expectation(description: "DNSAddrResolved")
+
         DispatchQueue.global().async {
-            let resolver2 = DNSRecordResolver()
-            resolver2.resolve(query: "_dnsaddr.sv15.bootstrap.libp2p.io") { result2 in
-                switch result2 {
+            let resolver = DNSRecordResolver()
+            resolver.resolve(query: domainToResolve) { result in
+                switch result {
                 case .success(let txtRecord):
-                    print(txtRecord.TXTRecords)
+                    XCTAssertGreaterThan(txtRecord.TXTRecords.count, 0)
                 case .failure(let error):
                     XCTFail("Error: \(error)")
                 }
-                resolvedExpectation2.fulfill()
+                resolvedExpectation.fulfill()
             }
         }
 
-        waitForExpectations(timeout: 10)
+        waitForExpectations(timeout: 5.0)
     }
 
     #endif
