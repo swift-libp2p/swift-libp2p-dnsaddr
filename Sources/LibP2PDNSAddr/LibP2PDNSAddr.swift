@@ -82,7 +82,9 @@ public final class DNSAddr: AddressResolver, LifecycleHandler {
 
                 var dict: [String: String] = [:]
                 for txtRecord in txtRecords {
-                    txtRecord.values.forEach { dict[$0.value] = $0.key }
+                    for entry in txtRecord.values {
+                        dict[entry.value] = entry.key
+                    }
                 }
 
                 // This might resolve to a few different Multiaddr, but if we cant find a MA with the same peerID we bail...
@@ -110,7 +112,9 @@ public final class DNSAddr: AddressResolver, LifecycleHandler {
 
                     var dict2: [String: String] = [:]
                     for txtRecord in txtRecords2 {
-                        txtRecord.values.forEach { dict2[$0.value] = $0.key }
+                        for entry in txtRecord.values {
+                            dict2[entry.value] = entry.key
+                        }
                     }
 
                     let addresses = dict2.compactMap({ key, val -> Multiaddr? in
