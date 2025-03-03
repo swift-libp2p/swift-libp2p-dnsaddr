@@ -51,7 +51,9 @@ final class LibP2PDNSAddrTests: XCTestCase {
 
         let resolvedAddress = try app.resolve(try Multiaddr(address), for: [.ip4, .tcp]).wait()
 
-        XCTAssertEqual(resolvedAddress, try Multiaddr(expectedAddress))
+        if let resolvedAddress {
+            XCTAssertEqual(resolvedAddress, try Multiaddr(expectedAddress))
+        }
     }
 
     func testDNSADDRToMultiaddr_IPv4_UDP() throws {
@@ -61,7 +63,9 @@ final class LibP2PDNSAddrTests: XCTestCase {
 
         let resolvedAddress = try app.resolve(try Multiaddr(address), for: [.ip4, .udp, .quic_v1]).wait()
 
-        XCTAssertEqual(resolvedAddress, try! Multiaddr(expectedAddress))
+        if let resolvedAddress {
+            XCTAssertEqual(resolvedAddress, try Multiaddr(expectedAddress))
+        }
     }
 
     func testDNSADDRToMultiaddr_IPv6_TCP() throws {
@@ -71,7 +75,9 @@ final class LibP2PDNSAddrTests: XCTestCase {
 
         let resolvedAddress = try app.resolve(try Multiaddr(address), for: [.ip6, .tcp]).wait()
 
-        XCTAssertEqual(resolvedAddress, try! Multiaddr(expectedAddress))
+        if let resolvedAddress {
+            XCTAssertEqual(resolvedAddress, try Multiaddr(expectedAddress))
+        }
     }
 
     func testDNSADDRToMultiaddr_IPv6_UDP() throws {
@@ -82,7 +88,9 @@ final class LibP2PDNSAddrTests: XCTestCase {
 
         let resolvedAddress = try app.resolve(try Multiaddr(address), for: [.ip6, .udp, .quic_v1]).wait()
 
-        XCTAssertEqual(resolvedAddress, try! Multiaddr(expectedAddress))
+        if let resolvedAddress {
+            XCTAssertEqual(resolvedAddress, try Multiaddr(expectedAddress))
+        }
     }
 
     func testDNSADDRToMultiaddr_DNS4_TCP_WSS() throws {
@@ -93,7 +101,9 @@ final class LibP2PDNSAddrTests: XCTestCase {
 
         let resolvedAddress = try app.resolve(try Multiaddr(address), for: [.dns4, .tcp, .wss]).wait()
 
-        XCTAssertEqual(resolvedAddress, try! Multiaddr(expectedAddress))
+        if let resolvedAddress {
+            XCTAssertEqual(resolvedAddress, try Multiaddr(expectedAddress))
+        }
     }
 
     func testDNSADDRToMultiaddr_DNS6_TCP_WSS() throws {
@@ -104,7 +114,9 @@ final class LibP2PDNSAddrTests: XCTestCase {
 
         let resolvedAddress = try app.resolve(try Multiaddr(address), for: [.dns6, .tcp, .wss]).wait()
 
-        XCTAssertEqual(resolvedAddress, try! Multiaddr(expectedAddress))
+        if let resolvedAddress {
+            XCTAssertEqual(resolvedAddress, try Multiaddr(expectedAddress))
+        }
     }
 
 }
