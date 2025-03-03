@@ -181,8 +181,9 @@ final class LibP2PDNSAddrTests: XCTestCase {
 
         let resolvedExpectation = expectation(description: "DNSAddrResolved")
 
+        let resolver = DNSRecordResolver()
+
         DispatchQueue.global().async {
-            let resolver = DNSRecordResolver()
             resolver.resolve(query: domainToResolve) { result in
                 switch result {
                 case .success(let txtRecord):
@@ -196,27 +197,24 @@ final class LibP2PDNSAddrTests: XCTestCase {
         }
 
         waitForExpectations(timeout: 5.0)
-    }
 
-    func testResolveDNSADDR_Second() throws {
-        let domainToResolve = "_dnsaddr.sv15.bootstrap.libp2p.io"
+        let resolvedExpectation2 = expectation(description: "DNSAddrResolved2")
 
-        let resolvedExpectation = expectation(description: "DNSAddrResolved")
-
-        DispatchQueue.global().asyncAfter(deadline: .now() + .seconds(4)) {
-            let resolver = DNSRecordResolver()
-            resolver.resolve(query: domainToResolve) { result in
+        let domainToResolve2 = "_dnsaddr.sv15.bootstrap.libp2p.io"
+        DispatchQueue.global().async {
+            resolver.resolve(query: domainToResolve2) { result in
                 switch result {
                 case .success(let txtRecord):
+                    print(txtRecord.TXTRecords)
                     XCTAssertGreaterThan(txtRecord.TXTRecords.count, 0)
                 case .failure(let error):
                     XCTFail("Error: \(error)")
                 }
-                resolvedExpectation.fulfill()
+                resolvedExpectation2.fulfill()
             }
         }
 
-        waitForExpectations(timeout: 8.0)
+        waitForExpectations(timeout: 5.0)
     }
 
     #endif
