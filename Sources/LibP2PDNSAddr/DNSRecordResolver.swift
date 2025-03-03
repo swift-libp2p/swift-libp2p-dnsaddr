@@ -34,7 +34,7 @@ public typealias TXTResolverCompletion = (TXTResolverResult) -> Void
 
 #if canImport(dnssd)
 class DNSRecordResolver {
-    private let queue = DispatchQueue.init(label: "DNSResolution")
+    private let queue = DispatchQueue.init(label: "DNSResolution-\(UUID().uuidString.prefix(5))")
     private var dispatchSourceRead: DispatchSourceRead?
     private var timeoutTimer: DispatchSourceTimer?
     private var serviceRef: DNSServiceRef?
