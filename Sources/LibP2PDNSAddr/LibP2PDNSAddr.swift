@@ -70,22 +70,6 @@ public final class DNSAddr: AddressResolver {
     /// Provided a Multiaddr that uses the `dnsaddr` codec, this method will attempt to resolve the domain into it's underyling ip address.
     /// - Note: this method is not recusrive, it will only resolve `dnsaddr`s that are at most 2 layers deep.
     /// - Info: https://github.com/multiformats/multiaddr/blob/master/protocols/DNSADDR.md
-    //    static func resolve(
-    //        address ma: Multiaddr,
-    //        for codecs: Set<MultiaddrProtocol> = [.ip4, .tcp],
-    //        callback: @escaping (Multiaddr?) -> Void
-    //    ) {
-    //        callback(resolve(address: ma, for: codecs))
-    //    }
-
-    //    static func resolve(address ma: Multiaddr, for codecs: Set<MultiaddrProtocol> = [.ip4, .tcp]) -> Multiaddr? {
-    //        guard let addresses = DNSAddr.resolve(address: ma) else { return nil }
-    //
-    //        return addresses.first(where: { addy in
-    //            Set(addy.addresses.map { $0.codec }).isSuperset(of: codecs)
-    //        })
-    //    }
-
     static func resolve(
         address ma: Multiaddr,
         for codecs: Set<MultiaddrProtocol> = [.ip4, .tcp],
@@ -175,20 +159,21 @@ public final class DNSAddr: AddressResolver {
         }
         let dnsAddrPrefix = "_dnsaddr."
 
-        query(domainName: dnsAddrPrefix + domain) { firstResolution in
+        let resolver = DNSRecordResolver()
+        resolver.resolve(query: dnsAddrPrefix + domain) { result in
+            guard case .success(let firstResolution) = result else {
+                print("First resolution failed")
+                return cb(nil)
+            }
             print(firstResolution)
 
             /// This might resolve to a few different Multiaddr, but if we cant find a MA with the same peerID we bail...
-            guard
-                let host = firstResolution?.first(where: { key, val in
-                    key.contains(pid)
-                })
-            else {
+            guard let host = firstResolution.TXTRecords.first(where: { $0.value.contains(pid) }) else {
                 print("Error: Failed to find host during first round of DNS TXT Resolution")
                 return cb(nil)
             }
 
-            guard let hostMA = try? Multiaddr(host.key) else {
+            guard let hostMA = try? Multiaddr(host.value) else {
                 print("Error: Failed to instantiate Multiaddress from dnsaddr text record.")
                 return cb(nil)
             }
@@ -201,12 +186,17 @@ public final class DNSAddr: AddressResolver {
             }
 
             print("Attempting to resolve `\(dnsAddrPrefix + domain2)`")
-            query(domainName: dnsAddrPrefix + domain2) { secondResolution in
+            let resolver2 = DNSRecordResolver()
+            resolver2.resolve(query: dnsAddrPrefix + domain2) { secondResult in
+                guard case .success(let secondResolution) = secondResult else {
+                    print("First resolution failed")
+                    return cb(nil)
+                }
                 print(secondResolution)
 
-                let addresses = secondResolution?.compactMap({ key, val -> Multiaddr? in
+                let addresses = secondResolution.TXTRecords.compactMap({ record -> Multiaddr? in
                     /// Ensure its a valid multiaddr
-                    guard let ma = try? Multiaddr(key) else {
+                    guard let ma = try? Multiaddr(record.value) else {
                         print("Error: Invalid Multiaddr -> \(key).")
                         return nil
                     }
@@ -219,7 +209,7 @@ public final class DNSAddr: AddressResolver {
                     return ma
                 })
 
-                if let addresses = addresses, !addresses.isEmpty {
+                if !addresses.isEmpty {
                     return cb(addresses)
                 } else {
                     print("Error: No Addresses Resolved")
@@ -295,81 +285,84 @@ public final class DNSAddr: AddressResolver {
     //        #endif
     //    }
 
-    static func query(domainName: String, cb: @escaping ([String: String]?) -> Void) {
-        #if !canImport(dnssd)
-        print("LibP2PDNSAddr is not supported on non darwin machines yet")
-        return nil
-        #else
-        DispatchQueue.global().async {
-            var result: [String: String] = [:]
-            var recordHandler: ([String: String]?) -> Void = {
-                (record) -> Void in
-                if record != nil {
-                    for (k, v) in record! {
-                        result.updateValue(v, forKey: k)
-                    }
-                }
-            }
-
-            let callback: DNSServiceQueryRecordReply = {
-                (
-                    sdRef,
-                    flags,
-                    interfaceIndex,
-                    errorCode,
-                    fullname,
-                    rrtype,
-                    rrclass,
-                    rdlen,
-                    rdata,
-                    ttl,
-                    context
-                ) -> Void
-                in
-                guard let handlerPtr = context?.assumingMemoryBound(to: (([String: String]?) -> Void).self) else {
-                    return
-                }
-                let handler = handlerPtr.pointee
-                if errorCode != kDNSServiceErr_NoError {
-                    return
-                }
-                guard let txtPtr = rdata?.assumingMemoryBound(to: UInt8.self) else {
-                    return
-                }
-                let txt = String(cString: txtPtr.advanced(by: 1))
-                var record: [String: String] = [:]
-                let parts = txt.components(separatedBy: "=")
-
-                record[parts[1]] = parts[0]
-
-                handler(record)
-            }
-
-            let serviceRef: UnsafeMutablePointer<DNSServiceRef?> = UnsafeMutablePointer.allocate(
-                capacity: MemoryLayout<DNSServiceRef>.size
-            )
-            let code = DNSServiceQueryRecord(
-                serviceRef,
-                kDNSServiceFlagsTimeout,
-                0,
-                domainName,
-                UInt16(kDNSServiceType_TXT),
-                UInt16(kDNSServiceClass_IN),
-                callback,
-                &recordHandler
-            )
-            if code != kDNSServiceErr_NoError {
-                cb(nil)
-                return
-            }
-            DNSServiceProcessResult(serviceRef.pointee)
-            DNSServiceRefDeallocate(serviceRef.pointee)
-
-            cb(result)
-            return
-        }
-        #endif
-    }
+    //    static func query(domainName: String, cb: @escaping ([String: String]?) -> Void) {
+    //        #if !canImport(dnssd)
+    //        print("LibP2PDNSAddr is not supported on non darwin machines yet")
+    //        return nil
+    //        #else
+    //        DispatchQueue.global().async {
+    //            var result: [String: String] = [:]
+    //            var recordHandler: ([String: String]?) -> Void = {
+    //                (record) -> Void in
+    //                if record != nil {
+    //                    for (k, v) in record! {
+    //                        result.updateValue(v, forKey: k)
+    //                    }
+    //                }
+    //            }
+    //
+    //            let callback: DNSServiceQueryRecordReply = {
+    //                (
+    //                    sdRef,
+    //                    flags,
+    //                    interfaceIndex,
+    //                    errorCode,
+    //                    fullname,
+    //                    rrtype,
+    //                    rrclass,
+    //                    rdlen,
+    //                    rdata,
+    //                    ttl,
+    //                    context
+    //                ) -> Void
+    //                in
+    //                guard let handlerPtr = context?.assumingMemoryBound(to: (([String: String]?) -> Void).self) else {
+    //                    return
+    //                }
+    //                let handler = handlerPtr.pointee
+    //                if errorCode != kDNSServiceErr_NoError {
+    //                    return
+    //                }
+    //                guard let txtPtr = rdata?.assumingMemoryBound(to: UInt8.self) else {
+    //                    return
+    //                }
+    //                let txt = String(cString: txtPtr.advanced(by: 1))
+    //                var record: [String: String] = [:]
+    //                let parts = txt.components(separatedBy: "=")
+    //
+    //                record[parts[1]] = parts[0]
+    //
+    //                handler(record)
+    //            }
+    //
+    //            let serviceRef: UnsafeMutablePointer<DNSServiceRef?> = UnsafeMutablePointer.allocate(
+    //                capacity: MemoryLayout<DNSServiceRef>.size
+    //            )
+    //            let code = DNSServiceQueryRecord(
+    //                serviceRef,
+    //                kDNSServiceFlagsTimeout,
+    //                0,
+    //                domainName,
+    //                UInt16(kDNSServiceType_TXT),
+    //                UInt16(kDNSServiceClass_IN),
+    //                callback,
+    //                &recordHandler
+    //            )
+    //            DNSServiceProcessResult(serviceRef.pointee)
+    //
+    //            if code != kDNSServiceErr_NoError {
+    //                cb(nil)
+    //                DNSServiceRefDeallocate(serviceRef.pointee)
+    //                return
+    //            }
+    //
+    //            DNSServiceRefDeallocate(serviceRef.pointee)
+    //
+    //            cb(result)
+    //            return
+    //        }
+    //        #endif
+    //    }
 }
 
 extension Multiaddr {
