@@ -208,7 +208,7 @@ final class LibP2PDNSAddrTests: XCTestCase {
             }
         }
 
-        waitForExpectations(timeout: 3)
+        waitForExpectations(timeout: 10)
     }
 
     #endif

@@ -45,7 +45,7 @@ class DNSRecordResolver {
     // but if you take more than 5 secs to look things up, you'll
     // probably have other problems
 
-    private let timeout = TimeInterval(5)
+    private let timeout = TimeInterval(3)
 
     var results = [TXTRecord]()
     var completion: TXTResolverCompletion?
