@@ -203,7 +203,7 @@ final class LibP2PDNSAddrTests: XCTestCase {
 
         let resolvedExpectation = expectation(description: "DNSAddrResolved")
 
-        DispatchQueue.global().async {
+        DispatchQueue.global().asyncAfter(deadline: .now() + .seconds(4)) {
             let resolver = DNSRecordResolver()
             resolver.resolve(query: domainToResolve) { result in
                 switch result {
@@ -216,7 +216,7 @@ final class LibP2PDNSAddrTests: XCTestCase {
             }
         }
 
-        waitForExpectations(timeout: 5.0)
+        waitForExpectations(timeout: 8.0)
     }
 
     #endif
