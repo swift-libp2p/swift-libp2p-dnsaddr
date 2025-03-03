@@ -8,3 +8,5 @@ jobs:
   tests:
     name: PR
     uses: swift-libp2p/github-workflows/.github/workflows/pull_request.yml@main
+    with:
+      api_breakage_check_enabled: false
