@@ -54,12 +54,14 @@ final class LibP2PDNSAddrTests: XCTestCase {
 
         DispatchQueue.global(qos: .userInteractive).async {
             do {
-                let resolvedAddress = DNSAddr.resolve(address: try Multiaddr(address), for: [.ip4, .tcp])
-                XCTAssertEqual(resolvedAddress, try Multiaddr(expectedAddress))
+                DNSAddr.resolve(address: try Multiaddr(address), for: [.ip4, .tcp]) { resolvedAddress in
+                    XCTAssertEqual(resolvedAddress, try! Multiaddr(expectedAddress))
+                    resolvedExpectation.fulfill()
+                }
             } catch {
                 XCTFail("\(error)")
+                resolvedExpectation.fulfill()
             }
-            resolvedExpectation.fulfill()
         }
 
         waitForExpectations(timeout: 3)
@@ -74,12 +76,14 @@ final class LibP2PDNSAddrTests: XCTestCase {
 
         DispatchQueue.global(qos: .userInteractive).async {
             do {
-                let resolvedAddress = DNSAddr.resolve(address: try Multiaddr(address), for: [.ip4, .udp, .quic_v1])
-                XCTAssertEqual(resolvedAddress, try Multiaddr(expectedAddress))
+                DNSAddr.resolve(address: try Multiaddr(address), for: [.ip4, .udp, .quic_v1]) { resolvedAddress in
+                    XCTAssertEqual(resolvedAddress, try! Multiaddr(expectedAddress))
+                    resolvedExpectation.fulfill()
+                }
             } catch {
                 XCTFail("\(error)")
+                resolvedExpectation.fulfill()
             }
-            resolvedExpectation.fulfill()
         }
 
         waitForExpectations(timeout: 3)
@@ -94,12 +98,14 @@ final class LibP2PDNSAddrTests: XCTestCase {
 
         DispatchQueue.global(qos: .userInteractive).async {
             do {
-                let resolvedAddress = DNSAddr.resolve(address: try Multiaddr(address), for: [.ip6, .tcp])
-                XCTAssertEqual(resolvedAddress, try Multiaddr(expectedAddress))
+                DNSAddr.resolve(address: try Multiaddr(address), for: [.ip6, .tcp]) { resolvedAddress in
+                    XCTAssertEqual(resolvedAddress, try! Multiaddr(expectedAddress))
+                    resolvedExpectation.fulfill()
+                }
             } catch {
                 XCTFail("\(error)")
+                resolvedExpectation.fulfill()
             }
-            resolvedExpectation.fulfill()
         }
 
         waitForExpectations(timeout: 3)
@@ -115,12 +121,14 @@ final class LibP2PDNSAddrTests: XCTestCase {
 
         DispatchQueue.global(qos: .userInteractive).async {
             do {
-                let resolvedAddress = DNSAddr.resolve(address: try Multiaddr(address), for: [.ip6, .udp, .quic_v1])
-                XCTAssertEqual(resolvedAddress, try Multiaddr(expectedAddress))
+                DNSAddr.resolve(address: try Multiaddr(address), for: [.ip6, .udp, .quic_v1]) { resolvedAddress in
+                    XCTAssertEqual(resolvedAddress, try! Multiaddr(expectedAddress))
+                    resolvedExpectation.fulfill()
+                }
             } catch {
                 XCTFail("\(error)")
+                resolvedExpectation.fulfill()
             }
-            resolvedExpectation.fulfill()
         }
 
         waitForExpectations(timeout: 3)
@@ -136,26 +144,37 @@ final class LibP2PDNSAddrTests: XCTestCase {
 
         DispatchQueue.global(qos: .userInteractive).async {
             do {
-                let resolvedAddress = DNSAddr.resolve(address: try Multiaddr(address), for: [.dns4, .tcp, .wss])
-                XCTAssertEqual(resolvedAddress, try Multiaddr(expectedAddress))
+                DNSAddr.resolve(address: try Multiaddr(address), for: [.dns4, .tcp, .wss]) { resolvedAddress in
+                    XCTAssertEqual(resolvedAddress, try! Multiaddr(expectedAddress))
+                    resolvedExpectation.fulfill()
+                }
             } catch {
                 XCTFail("\(error)")
+                resolvedExpectation.fulfill()
             }
         }
 
-        func testDNSADDRToMultiaddr_DNS6_TCP_WSS() throws {
+        waitForExpectations(timeout: 3)
+    }
 
-            let address = "/dnsaddr/bootstrap.libp2p.io/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN"
-            let expectedAddress =
-                "/dns6/sv15.bootstrap.libp2p.io/tcp/443/wss/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN"
+    func testDNSADDRToMultiaddr_DNS6_TCP_WSS() throws {
 
+        let address = "/dnsaddr/bootstrap.libp2p.io/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN"
+        let expectedAddress =
+            "/dns6/sv15.bootstrap.libp2p.io/tcp/443/wss/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN"
+
+        let resolvedExpectation = expectation(description: "DNSAddrResolved")
+
+        DispatchQueue.global(qos: .userInteractive).async {
             do {
-                let resolvedAddress = DNSAddr.resolve(address: try Multiaddr(address), for: [.dns6, .tcp, .wss])
-                XCTAssertEqual(resolvedAddress, try Multiaddr(expectedAddress))
+                DNSAddr.resolve(address: try Multiaddr(address), for: [.dns6, .tcp, .wss]) { resolvedAddress in
+                    XCTAssertEqual(resolvedAddress, try! Multiaddr(expectedAddress))
+                    resolvedExpectation.fulfill()
+                }
             } catch {
                 XCTFail("\(error)")
+                resolvedExpectation.fulfill()
             }
-            resolvedExpectation.fulfill()
         }
 
         waitForExpectations(timeout: 3)
