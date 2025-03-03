@@ -25,6 +25,7 @@ import dnssd
 #endif
 
 public enum DNSResolverError: String, Error, Codable {
+    case unsupportedPlatform = "Unsupported platform"
     case unableToComplete = "Unable to complete lookup"
 }
 
@@ -169,7 +170,7 @@ class DNSRecordResolver {
 
     func resolve(query: String, completion: @escaping TXTResolverCompletion) {
         print("Multiaddr::DNSADDR Resolution not supported on this platform.")
-        completion(nil)
+        completion(.failure(DNSResolverError.unsupportedPlatform))
     }
 
 }
