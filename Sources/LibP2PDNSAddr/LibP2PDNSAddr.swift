@@ -149,6 +149,36 @@ public final class DNSAddr: AddressResolver {
     //            return nil
     //        }
     //    }
+    static func resolveSingle(address ma: Multiaddr, cb: @escaping ([Multiaddr]?) -> Void) {
+        guard ma.addresses.first?.codec == .dnsaddr, let domain = ma.addresses.first?.addr, let pid = ma.getPeerID()
+        else {
+            print("Error: Multiaddr isn't dnsaddr comppatible.")
+            return cb(nil)
+        }
+        let dnsAddrPrefix = "_dnsaddr."
+
+        let resolver = DNSRecordResolver()
+        resolver.resolve(query: dnsAddrPrefix + domain) { result in
+            guard case .success(let firstResolution) = result else {
+                print("First resolution failed")
+                return cb(nil)
+            }
+            print(firstResolution)
+
+            /// This might resolve to a few different Multiaddr, but if we cant find a MA with the same peerID we bail...
+            guard let host = firstResolution.TXTRecords.first(where: { $0.value.contains(pid) }) else {
+                print("Error: Failed to find host during first round of DNS TXT Resolution")
+                return cb(nil)
+            }
+
+            guard let hostMA = try? Multiaddr(host.value) else {
+                print("Error: Failed to instantiate Multiaddress from dnsaddr text record.")
+                return cb(nil)
+            }
+
+            return cb([hostMA])
+        }
+    }
 
     static func resolve(address ma: Multiaddr, cb: @escaping ([Multiaddr]?) -> Void) {
         /// Only proceed if the Mutliaddr is a dnsaddr proto and has a p2p peerID present
@@ -189,7 +219,7 @@ public final class DNSAddr: AddressResolver {
             let resolver2 = DNSRecordResolver()
             resolver2.resolve(query: dnsAddrPrefix + domain2) { secondResult in
                 guard case .success(let secondResolution) = secondResult else {
-                    print("First resolution failed")
+                    print("Second resolution failed")
                     return cb(nil)
                 }
                 print(secondResolution)
