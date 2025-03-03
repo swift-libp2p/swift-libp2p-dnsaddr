@@ -67,8 +67,10 @@ class DNSRecordResolver {
         }
 
         if (flags & kDNSServiceFlagsMoreComing) == 0 {
+            print("Done")
             request.success()
         }
+        print("More comming")
     }
 
     // These allow for the ObjC -> Swift conversion of a pointer

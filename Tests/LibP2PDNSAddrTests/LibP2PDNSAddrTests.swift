@@ -187,10 +187,11 @@ final class LibP2PDNSAddrTests: XCTestCase {
             resolver.resolve(query: domainToResolve) { result in
                 switch result {
                 case .success(let txtRecord):
+                    print("First Results")
                     print(txtRecord.TXTRecords)
                     XCTAssertGreaterThan(txtRecord.TXTRecords.count, 0)
                 case .failure(let error):
-                    XCTFail("Error: \(error)")
+                    XCTFail("Error 1: \(error)")
                 }
                 resolvedExpectation.fulfill()
             }
@@ -205,10 +206,11 @@ final class LibP2PDNSAddrTests: XCTestCase {
             resolver.resolve(query: domainToResolve2) { result in
                 switch result {
                 case .success(let txtRecord):
+                    print("Second Results")
                     print(txtRecord.TXTRecords)
                     XCTAssertGreaterThan(txtRecord.TXTRecords.count, 0)
                 case .failure(let error):
-                    XCTFail("Error: \(error)")
+                    XCTFail("Error 2: \(error)")
                 }
                 resolvedExpectation2.fulfill()
             }
