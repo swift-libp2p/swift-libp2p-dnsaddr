@@ -41,12 +41,14 @@ public final class DNSAddr: AddressResolver, LifecycleHandler {
     private var logger: Logger
     private let uuid: UUID
     private var client: DNSClient!
+    private let host: SocketAddress?
 
-    init(application: Application) {
+    init(application: Application, host: SocketAddress? = nil) {
         self.application = application
         self.eventLoop = application.eventLoopGroup.next()
         self.logger = application.logger
         self.uuid = UUID()
+        self.host = host
 
         self.logger[metadataKey: DNSAddr.key] = .string("[\(uuid.uuidString.prefix(5))]")
     }
@@ -54,8 +56,9 @@ public final class DNSAddr: AddressResolver, LifecycleHandler {
     public func willBoot(_ application: Application) throws {
         self.logger.trace("Initializing")
         // We connect with TCP due to UDP packet size contstraints (UPD seems to max out at 4 records)
-        let googleDNS = try SocketAddress(ipAddress: "8.8.8.8", port: 53)
-        self.client = try DNSClient.connectTCP(on: self.eventLoop.next(), config: [googleDNS]).wait()
+        var hostConfig: [SocketAddress] = []
+        if let host = self.host { hostConfig.append(host) }
+        self.client = try DNSClient.connectTCP(on: self.eventLoop.next(), config: hostConfig).wait()
     }
 
     public func shutdown(_ application: Application) {
