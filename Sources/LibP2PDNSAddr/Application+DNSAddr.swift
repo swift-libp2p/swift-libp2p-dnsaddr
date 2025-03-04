@@ -24,4 +24,14 @@ extension Application.Resolvers.Provider {
             }
         }
     }
+
+    public static func dnsaddr(host: SocketAddress) -> Self {
+        .init { app in
+            app.resolvers.use {
+                let dnsAddr = DNSAddr(application: $0, host: host)
+                app.lifecycle.use(dnsAddr)
+                return dnsAddr
+            }
+        }
+    }
 }
