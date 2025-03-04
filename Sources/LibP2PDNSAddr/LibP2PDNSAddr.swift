@@ -53,11 +53,12 @@ public final class DNSAddr: AddressResolver, LifecycleHandler {
 
     public func willBoot(_ application: Application) throws {
         self.logger.trace("Initializing")
-        self.client = try DNSClient.connect(on: self.eventLoop.next()).wait()
+        // We connect with TCP due to UDP packet size contstraints (UPD seems to max out at 4 records)
+        self.client = try DNSClient.connectTCP(on: self.eventLoop.next()).wait()
     }
 
     public func shutdown(_ application: Application) {
-        self.logger.trace("Shutdown")
+        self.logger.trace("Shutting Down")
         self.client?.cancelQueries()
     }
 
