@@ -23,7 +23,10 @@ final class LibP2PDNSAddrTests: XCTestCase {
 
     override func setUpWithError() throws {
         app = try Application(.detect())
-        app.resolvers.use(.dnsaddr)
+        // On some github workers, the default dns provider locks.
+        // We can fix this by hardcoding a resolver (such as cloudflare or google)
+        let cloudflareDNS = try SocketAddress(ipAddress: "1.1.1.1", port: 53)
+        app.resolvers.use(.dnsaddr(host: cloudflareDNS))
         try app.start()
     }
 
