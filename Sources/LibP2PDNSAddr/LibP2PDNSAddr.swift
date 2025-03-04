@@ -54,7 +54,8 @@ public final class DNSAddr: AddressResolver, LifecycleHandler {
     public func willBoot(_ application: Application) throws {
         self.logger.trace("Initializing")
         // We connect with TCP due to UDP packet size contstraints (UPD seems to max out at 4 records)
-        self.client = try DNSClient.connectTCP(on: self.eventLoop.next()).wait()
+        let googleDNS = try SocketAddress(ipAddress: "8.8.8.8", port: 53)
+        self.client = try DNSClient.connectTCP(on: self.eventLoop.next(), config: [googleDNS]).wait()
     }
 
     public func shutdown(_ application: Application) {
