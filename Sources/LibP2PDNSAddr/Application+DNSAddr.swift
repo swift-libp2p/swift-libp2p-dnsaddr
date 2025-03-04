@@ -18,7 +18,19 @@ extension Application.Resolvers.Provider {
     public static var dnsaddr: Self {
         .init { app in
             app.resolvers.use {
-                DNSAddr(application: $0)
+                let dnsAddr = DNSAddr(application: $0)
+                app.lifecycle.use(dnsAddr)
+                return dnsAddr
+            }
+        }
+    }
+
+    public static func dnsaddr(host: SocketAddress) -> Self {
+        .init { app in
+            app.resolvers.use {
+                let dnsAddr = DNSAddr(application: $0, host: host)
+                app.lifecycle.use(dnsAddr)
+                return dnsAddr
             }
         }
     }
