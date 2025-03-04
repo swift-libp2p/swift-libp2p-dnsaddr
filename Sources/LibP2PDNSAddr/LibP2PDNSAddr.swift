@@ -15,7 +15,17 @@
 import DNSClient
 import LibP2P
 
-/// - Info: https://github.com/multiformats/multiaddr/blob/master/protocols/DNSADDR.md
+/// DNSAddr
+/// Is a protocol used by libp2p to resolve `Multiaddr`s that use the `dnsaddr` protocol.
+/// - [Specification](https://github.com/multiformats/multiaddr/blob/master/protocols/DNSADDR.md)
+/// ```swift
+/// // When configuring your libp2p instance
+/// app.resolvers.use(.dnsaddr)
+/// ...
+/// // Later you can call resolve on any app or req object
+/// app.resolve(ma).map { resolvedMultiaddr in ... }
+/// req.resolve(ma, for: [.ip4, .tcp]).map { resolvedMultiaddr in ... }
+/// ```
 public final class DNSAddr: AddressResolver, LifecycleHandler {
 
     public static var key: String = "DNSADDR"
@@ -30,7 +40,7 @@ public final class DNSAddr: AddressResolver, LifecycleHandler {
     private var eventLoop: EventLoop
     private var logger: Logger
     private let uuid: UUID
-    private var client: DNSClient? = nil
+    private var client: DNSClient!
 
     init(application: Application) {
         self.application = application
@@ -42,12 +52,12 @@ public final class DNSAddr: AddressResolver, LifecycleHandler {
     }
 
     public func willBoot(_ application: Application) throws {
-        self.logger.trace("\(DNSAddr.key)::DNSClient Initializing")
+        self.logger.trace("Initializing")
         self.client = try DNSClient.connect(on: self.eventLoop.next()).wait()
     }
 
     public func shutdown(_ application: Application) {
-        self.logger.trace("\(DNSAddr.key)::DNSClient Shutdown")
+        self.logger.trace("Shutdown")
         self.client?.cancelQueries()
     }
 
@@ -78,56 +88,24 @@ public final class DNSAddr: AddressResolver, LifecycleHandler {
 
             // Peform the first resolution
             let dnsAddrPrefix = "_dnsaddr."
-            let _ = self.resolveTXTRecords(forHost: dnsAddrPrefix + domain).map { txtRecords in
-
-                var dict: [String: String] = [:]
-                for txtRecord in txtRecords {
-                    for entry in txtRecord.values {
-                        dict[entry.value] = entry.key
-                    }
-                }
+            let _ = self.resolveAddresses(forHost: dnsAddrPrefix + domain).map { resovledAddresses in
 
                 // This might resolve to a few different Multiaddr, but if we cant find a MA with the same peerID we bail...
-                guard
-                    let host = dict.first(where: { $0.key.contains(pid) })?.key
-                else {
-                    print("Error: Failed to find host during first round of DNS TXT Resolution")
+                guard let host = resovledAddresses.first(where: { $0.getPeerID() == pid }) else {
                     return promise.fail(Errors.noMatchingHostFound)
                 }
 
-                guard let hostMA = try? Multiaddr(host) else {
-                    print("Error: Failed to instantiated Multiaddress from dnsaddr text record.")
-                    return promise.fail(Errors.invalidMultiaddr)
-                }
-
                 // If the resolved address is another dnsaddr, attempt to resolve it...
-                guard hostMA.addresses.first?.codec == .dnsaddr, let domain2 = hostMA.addresses.first?.addr,
-                    let pid2 = hostMA.getPeerID(), pid == pid2
+                guard host.addresses.first?.codec == .dnsaddr, let domain2 = host.addresses.first?.addr,
+                    let pid2 = host.getPeerID(), pid == pid2
                 else {
-                    return promise.succeed([hostMA])
+                    return promise.succeed([host])
                 }
 
-                //print("Attempting to resolve `\(dnsAddrPrefix + domain2)`")
-                let _ = self.resolveTXTRecords(forHost: dnsAddrPrefix + domain2).map { txtRecords2 in
-
-                    var dict2: [String: String] = [:]
-                    for txtRecord in txtRecords2 {
-                        for entry in txtRecord.values {
-                            dict2[entry.value] = entry.key
-                        }
-                    }
-
-                    let addresses = dict2.compactMap({ key, val -> Multiaddr? in
-                        // Ensure its a valid multiaddr
-                        guard let ma = try? Multiaddr(key) else { return nil }
-                        // Ensure the PeerID is present and equals that of the original multiaddr
-                        guard ma.getPeerID() == pid else { return nil }
-                        // return the multiaddr
-                        return ma
-                    })
-
-                    if !addresses.isEmpty {
-                        return promise.succeed(addresses)
+                let _ = self.resolveAddresses(forHost: dnsAddrPrefix + domain2, enforcingPeerID: pid).map {
+                    resovledAddresses2 in
+                    if !resovledAddresses2.isEmpty {
+                        return promise.succeed(resovledAddresses2)
                     } else {
                         return promise.fail(Errors.noMatchingHostFound)
                     }
@@ -136,6 +114,29 @@ public final class DNSAddr: AddressResolver, LifecycleHandler {
         }
 
         return promise.futureResult
+    }
+
+    private func resolveAddresses(forHost host: String, enforcingPeerID: String? = nil) -> EventLoopFuture<[Multiaddr]>
+    {
+        self.resolveTXTRecords(forHost: host).map { txtRecords in
+            // Convert our txtRecords to Multiaddr
+            var resovledAddresses: [Multiaddr] = []
+            for txtRecord in txtRecords {
+                for entry in txtRecord.values {
+                    // Ensure the txt records key equals "dnsaddr"
+                    guard entry.key == "dnsaddr" else { continue }
+                    // Ensure the ttx records value is a valid Multiaddr
+                    guard let ma = try? Multiaddr(entry.value) else { continue }
+                    // If we're validating the PeerID
+                    if let enforcingPeerID {
+                        // Ensure that the Multiaddr contains the expected PeerID
+                        guard ma.getPeerID() == enforcingPeerID else { continue }
+                    }
+                    resovledAddresses.append(ma)
+                }
+            }
+            return resovledAddresses
+        }
     }
 
     private func resolveTXTRecords(forHost host: String) -> EventLoopFuture<[TXTRecord]> {
@@ -153,21 +154,3 @@ public final class DNSAddr: AddressResolver, LifecycleHandler {
         }
     }
 }
-
-//extension Multiaddr {
-//
-//    public func resolve(for codecs: Set<MultiaddrProtocol> = [.ip4, .tcp]) -> Multiaddr? {
-//        nil
-//        //DNSAddr.resolve(address: self, for: codecs)
-//    }
-//
-//    public func resolve(
-//        address ma: Multiaddr,
-//        for codecs: Set<MultiaddrProtocol> = [.ip4, .tcp],
-//        callback: @escaping (Multiaddr?) -> Void
-//    ) {
-//        callback(nil)
-//        //DNSAddr.resolve(address: self, for: codecs, callback: callback)
-//    }
-//
-//}
