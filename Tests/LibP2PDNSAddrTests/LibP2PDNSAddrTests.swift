@@ -118,5 +118,4 @@ final class LibP2PDNSAddrTests: XCTestCase {
             XCTAssertEqual(resolvedAddress, try Multiaddr(expectedAddress))
         }
     }
-
 }
