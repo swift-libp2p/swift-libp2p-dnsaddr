@@ -88,7 +88,8 @@ public final class DNSAddr: AddressResolver, LifecycleHandler {
         self.eventLoop.execute {
 
             // Only proceed if the Mutliaddr is a dnsaddr proto and has a p2p peerID present
-            guard ma.addresses.first?.codec == .dnsaddr, let domain = ma.addresses.first?.addr, let pid = ma.getPeerID()
+            guard ma.addresses.first?.codec == .dnsaddr, let domain = ma.addresses.first?.addr,
+                let pid = try? ma.getPeerID()
             else { return promise.fail(Errors.invalidMultiaddr) }
 
             // Peform the first resolution
@@ -96,13 +97,13 @@ public final class DNSAddr: AddressResolver, LifecycleHandler {
             let _ = self.resolveAddresses(forHost: dnsAddrPrefix + domain).map { resovledAddresses in
 
                 // This might resolve to a few different Multiaddr, but if we cant find a MA with the same peerID we bail...
-                guard let host = resovledAddresses.first(where: { $0.getPeerID() == pid }) else {
+                guard let host = resovledAddresses.first(where: { (try? $0.getPeerID()) == pid }) else {
                     return promise.fail(Errors.noMatchingHostFound)
                 }
 
                 // If the resolved address is another dnsaddr, attempt to resolve it...
                 guard host.addresses.first?.codec == .dnsaddr, let domain2 = host.addresses.first?.addr,
-                    let pid2 = host.getPeerID(), pid == pid2
+                    let pid2 = try? host.getPeerID(), pid == pid2
                 else {
                     return promise.succeed([host])
                 }
@@ -121,7 +122,7 @@ public final class DNSAddr: AddressResolver, LifecycleHandler {
         return promise.futureResult
     }
 
-    private func resolveAddresses(forHost host: String, enforcingPeerID: String? = nil) -> EventLoopFuture<[Multiaddr]>
+    private func resolveAddresses(forHost host: String, enforcingPeerID: PeerID? = nil) -> EventLoopFuture<[Multiaddr]>
     {
         self.resolveTXTRecords(forHost: host).map { txtRecords in
             // Convert our txtRecords to Multiaddr
@@ -134,8 +135,9 @@ public final class DNSAddr: AddressResolver, LifecycleHandler {
                     guard let ma = try? Multiaddr(entry.value) else { continue }
                     // If we're validating the PeerID
                     if let enforcingPeerID {
+                        guard let peerID = try? ma.getPeerID() else { continue }
                         // Ensure that the Multiaddr contains the expected PeerID
-                        guard ma.getPeerID() == enforcingPeerID else { continue }
+                        guard peerID == enforcingPeerID else { continue }
                     }
                     resovledAddresses.append(ma)
                 }
