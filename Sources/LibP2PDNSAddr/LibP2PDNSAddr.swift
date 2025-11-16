@@ -14,6 +14,7 @@
 
 import DNSClient
 import LibP2P
+import NIOConcurrencyHelpers
 
 /// DNSAddr
 /// Is a protocol used by libp2p to resolve `Multiaddr`s that use the `dnsaddr` protocol.
@@ -28,7 +29,7 @@ import LibP2P
 /// ```
 public final class DNSAddr: AddressResolver, LifecycleHandler {
 
-    public static var key: String = "DNSADDR"
+    public static let key: String = "DNSADDR"
 
     public enum Errors: Error {
         case clientNotInitialized
@@ -36,29 +37,40 @@ public final class DNSAddr: AddressResolver, LifecycleHandler {
         case noMatchingHostFound
     }
 
-    private weak var application: Application!
-    private var eventLoop: EventLoop
-    private var logger: Logger
+    private let application: Application
+    private let eventLoop: EventLoop
+    private let logger: Logger
     private let uuid: UUID
-    private var client: DNSClient!
     private let host: SocketAddress?
+
+    private var client: DNSClient? {
+        get { _client.withLockedValue { $0 } }
+    }
+    private let _client: NIOLockedValueBox<DNSClient?>
 
     init(application: Application, host: SocketAddress? = nil) {
         self.application = application
         self.eventLoop = application.eventLoopGroup.next()
-        self.logger = application.logger
         self.uuid = UUID()
+        var logger = application.logger
+        logger[metadataKey: DNSAddr.key] = .string("[\(uuid.uuidString.prefix(5))]")
+        self.logger = logger
         self.host = host
-
-        self.logger[metadataKey: DNSAddr.key] = .string("[\(uuid.uuidString.prefix(5))]")
+        self._client = .init(nil)
     }
 
     public func willBoot(_ application: Application) throws {
         self.logger.trace("Initializing")
         // We connect with TCP due to UDP packet size contstraints (UPD seems to max out at 4 records)
         var hostConfig: [SocketAddress] = []
-        if let host = self.host { hostConfig.append(host) }
-        self.client = try DNSClient.connectTCP(on: self.eventLoop.next(), config: hostConfig).wait()
+        if let host = self.host {
+            hostConfig.append(host)
+        } else {
+            hostConfig.append(try SocketAddress(ipAddress: "1.1.1.1", port: 53))
+        }
+        try self._client.withLockedValue {
+            $0 = try DNSClient.connectTCP(on: self.eventLoop.next(), config: hostConfig).wait()
+        }
     }
 
     public func shutdown(_ application: Application) {
