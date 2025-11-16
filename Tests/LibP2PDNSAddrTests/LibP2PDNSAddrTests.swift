@@ -20,14 +20,14 @@ import Testing
 
 @Suite("Libp2p DNSADDR Tests", .serialized)
 struct LibP2PDNSAddrTests {
-    
+
     @Test func testAppConfiguration() async throws {
         let app = try Application(.detect())
         app.resolvers.use(.dnsaddr)
         try await app.startup()
         try await app.asyncShutdown()
     }
-    
+
 }
 
 @Suite("Libp2p DNSADDR Resolution Tests", .serialized)
@@ -56,9 +56,9 @@ final class LibP2PDNSAddrResolutionTests {
     ])
     func testDNSADDRToMultiaddr(_ address: String) async throws {
         let ma = try Multiaddr(address)
-        
+
         let resolvedAddresses = try await app.resolve(ma).get()
-        
+
         if ma.protocols().contains(.ip4) {
             // An already resolved address should result in a nil return value
             #expect(resolvedAddresses == nil)
@@ -67,11 +67,11 @@ final class LibP2PDNSAddrResolutionTests {
                 Issue.record("No Resolved Multiaddr")
                 return
             }
-            
+
             for ra in resolvedAddresses {
                 print(ra)
             }
-            
+
             #expect(resolvedAddresses.count > 0)
         }
     }
