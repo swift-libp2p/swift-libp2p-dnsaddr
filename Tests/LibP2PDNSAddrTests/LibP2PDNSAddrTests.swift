@@ -22,7 +22,7 @@ import Testing
 struct LibP2PDNSAddrTests {
 
     @Test func testAppConfiguration() async throws {
-        let app = try Application(.detect())
+        let app = try await Application.make(.detect(), peerID: .ephemeral())
         app.resolvers.use(.dnsaddr)
         try await app.startup()
         try await app.asyncShutdown()
@@ -35,7 +35,7 @@ final class LibP2PDNSAddrResolutionTests {
     var app: Application!
 
     init() async throws {
-        app = try Application(.detect())
+        app = try await Application.make(.detect(), peerID: .ephemeral())
         // On some github workers, the default dns provider locks.
         // We can fix this by hardcoding a resolver (such as cloudflare or google)
         let cloudflareDNS = try SocketAddress(ipAddress: "1.1.1.1", port: 53)
