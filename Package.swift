@@ -18,7 +18,7 @@ import PackageDescription
 let package = Package(
     name: "swift-libp2p-dnsaddr",
     platforms: [
-        .macOS(.v10_15),
+        .macOS(.v13),
         .iOS(.v13),
     ],
     products: [
@@ -35,7 +35,7 @@ let package = Package(
         .package(url: "https://github.com/swift-libp2p/swift-libp2p.git", .upToNextMinor(from: "0.3.3")),
 
         // DNS + NIO
-        .package(url: "https://github.com/orlandos-nl/DNSClient.git", .upToNextMajor(from: "2.4.4")),
+        .package(url: "https://github.com/orlandos-nl/DNSClient.git", .upToNextMajor(from: "2.6.0")),
     ],
     targets: [
         // Targets are the basic building blocks of a package. A target can define a module or a test suite.
