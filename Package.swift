@@ -32,7 +32,7 @@ let package = Package(
         // Dependencies declare other packages that this package depends on.
 
         // LibP2P Core Modules
-        .package(url: "https://github.com/swift-libp2p/swift-libp2p.git", .upToNextMinor(from: "0.3.3")),
+        .package(url: "https://github.com/swift-libp2p/swift-libp2p.git", .upToNextMinor(from: "0.3.11")),
 
         // DNS + NIO
         .package(url: "https://github.com/orlandos-nl/DNSClient.git", .upToNextMajor(from: "2.6.0")),
@@ -49,7 +49,10 @@ let package = Package(
         ),
         .testTarget(
             name: "LibP2PDNSAddrTests",
-            dependencies: ["LibP2PDNSAddr"]
+            dependencies: [
+                "LibP2PDNSAddr",
+                .product(name: "LibP2PTesting", package: "swift-libp2p"),
+            ]
         ),
     ]
 )
