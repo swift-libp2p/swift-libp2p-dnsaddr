@@ -17,16 +17,18 @@ import LibP2P
 import NIOConcurrencyHelpers
 
 /// DNSAddr
-/// Is a protocol used by libp2p to resolve `Multiaddr`s that use the `dnsaddr` protocol to handle dynamic or changing
-/// listening addresses. DNSAddr will attempt to resolve (from dns records) a dialable `Multiaddr`.
+/// Resolves `Multiaddr`s that use libp2p's DNS-based protocols into dialable addresses:
+/// - `/dnsaddr` — recursively looks up multiaddrs published in `_dnsaddr.<domain>` TXT records.
+/// - `/dns`, `/dns4`, `/dns6` — performs standard A/AAAA lookups and rewrites the name to `/ip4` / `/ip6`,
+///   preserving the transport suffix (e.g. `/tcp/443/wss/p2p/...`).
 /// - [Specification](https://github.com/multiformats/multiaddr/blob/master/protocols/DNSADDR.md)
 /// ```swift
 /// // When configuring your libp2p instance
 /// app.resolvers.use(.dnsaddr)
 /// ...
 /// // Later you can call resolve on any app or req object
-/// try await app.resolve(ma).get() // [Multiaddr]
-/// try await req.resolve(ma, for: [.ip4, .tcp]).get() // Multiaddr?
+/// try await app.resolve(ma) // [Multiaddr]
+/// try await req.resolve(ma, for: [.ip4, .tcp]) // Multiaddr?
 /// ```
 public final class DNSAddr: AddressResolver, LifecycleHandler {
 
@@ -202,9 +204,9 @@ extension DNSAddr {
         }
     }
 
-    /// Provided a Multiaddr that uses the `dnsaddr` codec, this method will attempt to resolve the domain into all of
-    /// its underlying addresses. Resolution is recursive: nested `/dnsaddr` records are followed until dialable
-    /// addresses are reached (bounded by ``maxRecursionDepth``).
+    /// Resolves a DNS-based Multiaddr into all of its underlying addresses. For `/dnsaddr`, resolution is
+    /// recursive — nested `/dnsaddr` records are followed until dialable addresses are reached (bounded by
+    /// ``maxRecursionDepth``). For `/dns`, `/dns4`, `/dns6`, A/AAAA records are resolved to `/ip4` / `/ip6`.
     public func resolve(multiaddr ma: Multiaddr) -> EventLoopFuture<[Multiaddr]?> {
         self.eventLoop.makeFutureWithTask {
             try await self.resolveAll(multiaddr: ma)
