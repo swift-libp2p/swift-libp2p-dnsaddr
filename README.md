@@ -24,17 +24,16 @@ dnsaddr is a protocol that instructs the resolver to lookup multiaddr(s) in DNS 
 This package adds the ability to resolves multiaddr's of the form 
 
 ```Swift
-// Given multiaddr that uses the DNSADDR protocol
-let ma = Multiaddr("/dnsaddr/bootstrap.libp2p.io/p2p/QmQCU2EcMqAqQPR2i9bChDtGNJchTbq5TbXJJ16u19uLTa")
+// Given a multiaddr that uses the DNSADDR protocol
+let ma = try Multiaddr("/dnsaddr/bootstrap.libp2p.io/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN")
 
-// Resolving it by calling app.resolve
-let resolvedAddresses = app.resolve(multiaddr: ma).wait()
+// Resolve it by calling app.resolve
+let resolvedAddresses = try await app.resolve(ma).get()
 
-// Yeilds a list of ip addresses that we can dial
-// /ip4/139.178.91.71/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN
-// /ip6/2604:1380:45e3:6e00::1/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN
-// ...
-// /ip4/139.178.91.71/udp/4001/quic-v1/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN
+// Yields a list of dialable addresses advertised for that peer
+// /ip4/x.x.x.x/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN
+// /ip4/x.x.x.x/tcp/443/wss/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN
+// /ip4/x.x.x.x/udp/4001/quic-v1/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN
 ```
 
 #### For more details see 
@@ -48,7 +47,7 @@ let package = Package(
     ...
     dependencies: [
         ...
-        .package(url: "https://github.com/swift-libp2p/swift-libp2p-dnsaddr.git", .upToNextMinor(from: "0.2.0"))
+        .package(url: "https://github.com/swift-libp2p/swift-libp2p-dnsaddr.git", .upToNextMinor(from: "0.3.0"))
     ],
     ...
         .target(
@@ -73,6 +72,10 @@ app.resolvers.use(.dnsaddr)
 let cloudflareDNS = try SocketAddress(ipAddress: "1.1.1.1", port: 53)
 app.resolvers.use(.dnsaddr(host: cloudflareDNS))
 
+/// Or you can set multiple dns resolvers and a specific recursion depth (clamped between 1-8)
+let googleDNS = try SocketAddress(ipAddress: "8.8.8.8", port: 53)
+app.resolvers.use(.dnsaddr(hosts: [cloudflareDNS, googleDNS], maxRecursionDepth: 5))
+
 /// From here on, when the application encounters a dnsaddr address it will use this package to attempt to resolve it.
 
 ```
@@ -81,16 +84,29 @@ app.resolvers.use(.dnsaddr(host: cloudflareDNS))
 ### Example
 
 ```Swift
+import LibP2PDNSAddr
 
-N/A
+app.resolvers.use(.dnsaddr)
 
+let ma = try Multiaddr("/dnsaddr/bootstrap.libp2p.io/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN")
+
+// Resolve every dialable address advertised for the peer
+let all = try await app.resolve(ma).get()
+
+// Or resolve a single address matching a preferred transport
+let quic = try await app.resolve(ma, for: [.dns, .udp, .quic_v1]).get()
 ```
 
 ### API
 ```Swift
+/// Resolve a `dnsaddr` multiaddr into every dialable address advertised for it.
+/// Nested `/dnsaddr` records are followed recursively until concrete addresses are reached.
+/// Returns `nil` if the domain advertises no matching records.
+func resolve(multiaddr: Multiaddr) -> EventLoopFuture<[Multiaddr]?>
 
-N/A
-
+/// Resolve a `dnsaddr` multiaddr, returning the first address whose protocols are a
+/// superset of the requested `codecs` (e.g. `[.dns, .tcp]`).
+func resolve(multiaddr: Multiaddr, for: Set<MultiaddrProtocol>) -> EventLoopFuture<Multiaddr?>
 ```
 
 ## Contributing
@@ -105,4 +121,4 @@ Let's make this code better together! 🤝
 
 ## License
 
-[MIT](LICENSE) © 2022 Breth Inc.
+[MIT](LICENSE) © 2026 Breth Inc.
