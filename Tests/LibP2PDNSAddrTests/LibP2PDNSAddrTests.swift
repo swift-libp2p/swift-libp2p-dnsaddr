@@ -211,13 +211,15 @@ struct LibP2PDNSAddrResolutionLogicTests {
     @Test func testReplacingLeadingHostRewritesDNS4ToIPv4() throws {
         let ma = try Multiaddr("/dns4/example.com/tcp/443/wss/p2p/\(Self.peerA)")
         let rewritten = try #require(DNSAddr.replacingLeadingHost(of: ma, withIP: "1.2.3.4", codec: .ip4))
-        #expect(rewritten == (try Multiaddr("/ip4/1.2.3.4/tcp/443/wss/p2p/\(Self.peerA)")))
+        let expected = try Multiaddr("/ip4/1.2.3.4/tcp/443/wss/p2p/\(Self.peerA)")
+        #expect(rewritten == expected)
     }
 
     @Test func testReplacingLeadingHostRewritesDNS6ToIPv6() throws {
         let ma = try Multiaddr("/dns6/example.com/udp/4001/quic-v1/p2p/\(Self.peerA)")
         let rewritten = try #require(DNSAddr.replacingLeadingHost(of: ma, withIP: "2606:4700:4700::1111", codec: .ip6))
-        #expect(rewritten == (try Multiaddr("/ip6/2606:4700:4700::1111/udp/4001/quic-v1/p2p/\(Self.peerA)")))
+        let expected = try Multiaddr("/ip6/2606:4700:4700::1111/udp/4001/quic-v1/p2p/\(Self.peerA)")
+        #expect(rewritten == expected)
     }
 }
 
