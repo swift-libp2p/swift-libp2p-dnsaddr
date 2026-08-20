@@ -24,11 +24,31 @@ extension Application.Resolvers.Provider {
             }
         }
     }
-
-    public static func dnsaddr(host: SocketAddress) -> Self {
+    
+    public static func dnsaddr(maxRecursionDepth: Int) -> Self {
         .init { app in
             app.resolvers.use {
-                let dnsAddr = DNSAddr(application: $0, host: host)
+                let dnsAddr = DNSAddr(application: $0, hosts: [], maxRecursionDepth: maxRecursionDepth)
+                app.lifecycle.use(dnsAddr)
+                return dnsAddr
+            }
+        }
+    }
+
+    public static func dnsaddr(host: SocketAddress, maxRecursionDepth: Int? = nil) -> Self {
+        .init { app in
+            app.resolvers.use {
+                let dnsAddr = DNSAddr(application: $0, hosts: [host], maxRecursionDepth: maxRecursionDepth)
+                app.lifecycle.use(dnsAddr)
+                return dnsAddr
+            }
+        }
+    }
+    
+    public static func dnsaddr(hosts: [SocketAddress], maxRecursionDepth: Int? = nil) -> Self {
+        .init { app in
+            app.resolvers.use {
+                let dnsAddr = DNSAddr(application: $0, hosts: hosts, maxRecursionDepth: maxRecursionDepth)
                 app.lifecycle.use(dnsAddr)
                 return dnsAddr
             }
