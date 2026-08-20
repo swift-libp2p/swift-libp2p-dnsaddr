@@ -24,7 +24,7 @@ extension Application.Resolvers.Provider {
             }
         }
     }
-    
+
     public static func dnsaddr(maxRecursionDepth: Int) -> Self {
         .init { app in
             app.resolvers.use {
@@ -44,7 +44,7 @@ extension Application.Resolvers.Provider {
             }
         }
     }
-    
+
     public static func dnsaddr(hosts: [SocketAddress], maxRecursionDepth: Int? = nil) -> Self {
         .init { app in
             app.resolvers.use {

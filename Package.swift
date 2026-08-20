@@ -51,7 +51,7 @@ let package = Package(
             name: "LibP2PDNSAddrTests",
             dependencies: [
                 "LibP2PDNSAddr",
-                .product(name: "LibP2PTesting", package: "swift-libp2p")
+                .product(name: "LibP2PTesting", package: "swift-libp2p"),
             ]
         ),
     ]
