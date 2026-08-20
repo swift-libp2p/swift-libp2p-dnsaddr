@@ -49,7 +49,10 @@ let package = Package(
         ),
         .testTarget(
             name: "LibP2PDNSAddrTests",
-            dependencies: ["LibP2PDNSAddr"]
+            dependencies: [
+                "LibP2PDNSAddr",
+                .product(name: "LibP2PTesting", package: "swift-libp2p")
+            ]
         ),
     ]
 )
