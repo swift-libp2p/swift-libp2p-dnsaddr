@@ -44,7 +44,7 @@ public final class DNSAddr: AddressResolver, LifecycleHandler {
     static let dnsAddrPrefix = "_dnsaddr."
     /// Valid `dnsaddr` TXT records begin with this prefix, followed by a single multiaddr.
     static let txtRecordPrefix = "dnsaddr="
-    
+
     /// A safety cap on how many levels of `/dnsaddr` indirection we'll follow before bailing.
     /// The spec allows arbitrarily deep recursion; this bound simply prevents runaway lookups.
     static let maxRecursionDepth = 8
@@ -53,7 +53,7 @@ public final class DNSAddr: AddressResolver, LifecycleHandler {
     let eventLoop: EventLoop
     let logger: Logger
     let uuid: UUID
-    let hosts: Array<SocketAddress>
+    let hosts: [SocketAddress]
     let recursionDepth: Int
 
     var client: DNSClient? {
@@ -118,6 +118,11 @@ public final class DNSAddr: AddressResolver, LifecycleHandler {
             Set(address.addresses.map { $0.codec }).isSuperset(of: codecs)
         }
     }
+}
+
+// MARK: - DSNAddr recursive TXT resolution
+
+extension DNSAddr {
 
     /// Rescursive `dnsaddr` resolution
     ///
@@ -285,7 +290,7 @@ extension DNSAddr {
     }
 }
 
-// MARK: Lifecycle conformance
+// MARK: - Lifecycle conformance
 
 extension DNSAddr {
     /// Synchronous boot hook (used when the application is started via `app.start()`).
@@ -295,20 +300,20 @@ extension DNSAddr {
             $0 = try DNSClient.connectTCP(on: self.eventLoop, config: self.resolverConfig()).wait()
         }
     }
-    
+
     /// Asynchronous boot hook (used when the application is started via `Application.make(...)`).
     public func willBootAsync(_ application: Application) async throws {
         self.logger.trace("Initializing")
         let client = try await DNSClient.connectTCP(on: self.eventLoop, config: self.resolverConfig()).get()
         self._client.withLockedValue { $0 = client }
     }
-    
+
     public func willShutdown(_ application: Application) {
         self.logger.trace("Shutting Down")
         self.client?.cancelQueries()
         let _ = self.client?.close()
     }
-    
+
     public func willShutdownAsync(_ application: Application) async {
         self.logger.trace("Shutting Down")
         self.client?.cancelQueries()
