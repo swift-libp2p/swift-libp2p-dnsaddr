@@ -88,10 +88,14 @@ public final class DNSAddr: AddressResolver, LifecycleHandler {
     /// Resolves every dialable address advertised for the given `dnsaddr` multiaddr.
     /// - Returns: the resolved addresses, or `nil` when the domain advertises no matching records.
     func resolveAll(multiaddr ma: Multiaddr) async throws -> [Multiaddr]? {
-        // Only proceed if the Multiaddr is a dnsaddr proto with a domain in its value section.
-        guard ma.addresses.first?.codec == .dnsaddr, let domain = ma.addresses.first?.addr else {
-            throw Errors.invalidMultiaddr
+        guard let first = ma.addresses.first else { throw Errors.invalidMultiaddr }
+
+        // If the first codec isn't `dnsaddr` pass the resquest along to the A/AAAA name resolution
+        guard first.codec == .dnsaddr else {
+            return try await self.resolveDNSName(multiaddr: ma)
         }
+        // Proceed with `dnsaddr` recursive TXT resolution
+        guard let domain = first.addr else { throw Errors.invalidMultiaddr }
 
         // A trailing `/p2p/<id>` (if present) is used for spec-defined suffix matching.
         // When absent, we return every advertised record for the domain.
@@ -189,12 +193,79 @@ public final class DNSAddr: AddressResolver, LifecycleHandler {
     }
 }
 
-// MARK: AddressResolver Conformance
+// MARK: - A/AAAA DNS Resolution
 
 extension DNSAddr {
 
-    /// Provided a Multiaddr that uses the `dnsaddr` codec, this method will attempt to resolve the domain into a
-    /// single underlying address whose protocols are a superset of the requested `codecs`.
+    /// Resolves a `/dns`, `/dns4`, or `/dns6` multiaddr into concrete `/ip4` / `/ip6` addresses via standard
+    /// A/AAAA DNS lookups, preserving the transport suffix (e.g. `/tcp/443/wss/p2p/...`).
+    ///
+    /// - `/dns4` performs an A (IPv4) lookup, `/dns6` an AAAA (IPv6) lookup, and `/dns` both.
+    /// - Returns `nil` for any address that isn't a `/dns*` name (it's already concrete, so there's nothing to do).
+    func resolveDNSName(multiaddr ma: Multiaddr) async throws -> [Multiaddr]? {
+        guard let host = ma.addresses.first?.addr else { throw Errors.invalidMultiaddr }
+
+        // Which address families to look up, and the ip codec each maps onto.
+        let lookups: [(ipv6: Bool, ipCodec: MultiaddrProtocol)]
+        switch ma.addresses.first?.codec {
+        case .dns4: lookups = [(false, .ip4)]
+        case .dns6: lookups = [(true, .ip6)]
+        case .dns: lookups = [(false, .ip4), (true, .ip6)]
+        default: return nil
+        }
+
+        guard let client = self.client else { throw Errors.clientNotInitialized }
+
+        var resolved: [Multiaddr] = []
+        for lookup in lookups {
+            let socketAddresses: [SocketAddress]
+            do {
+                if lookup.ipv6 {
+                    socketAddresses = try await client.initiateAAAAQuery(host: host, port: 0).get()
+                } else {
+                    socketAddresses = try await client.initiateAQuery(host: host, port: 0).get()
+                }
+            } catch {
+                // A single family failing (e.g. a name with no AAAA records) shouldn't discard the other's results.
+                self.logger.debug("DNS \(lookup.ipv6 ? "AAAA" : "A") lookup failed for \(host): \(error)")
+                continue
+            }
+
+            for socketAddress in socketAddresses {
+                guard let ip = socketAddress.ipAddress else { continue }
+                if let rewritten = Self.replacingLeadingHost(of: ma, withIP: ip, codec: lookup.ipCodec) {
+                    resolved.append(rewritten)
+                }
+            }
+        }
+
+        // De-duplicate while preserving discovery order.
+        var seen: Set<Multiaddr> = []
+        let unique = resolved.filter { seen.insert($0).inserted }
+        return unique.isEmpty ? nil : unique
+    }
+
+    /// Returns a copy of `ma` with its leading `/dns*` component replaced by an `/ip4` or `/ip6` component,
+    /// preserving every subsequent component (transport, security, `/p2p/...`, etc.).
+    static func replacingLeadingHost(of ma: Multiaddr, withIP ip: String, codec: MultiaddrProtocol) -> Multiaddr? {
+        do {
+            var result = try Multiaddr(codec, address: ip)
+            for component in ma.addresses.dropFirst() {
+                result = try result.encapsulate(proto: component.codec, address: component.addr)
+            }
+            return result
+        } catch {
+            return nil
+        }
+    }
+}
+
+// MARK: - AddressResolver Conformance
+
+extension DNSAddr {
+
+    /// Resolves a DNS-based Multiaddr (`/dnsaddr`, `/dns`, `/dns4`, `/dns6`) into a single underlying address
+    /// whose protocols are a superset of the requested `codecs`.
     public func resolve(
         multiaddr ma: Multiaddr,
         for codecs: Set<MultiaddrProtocol>
