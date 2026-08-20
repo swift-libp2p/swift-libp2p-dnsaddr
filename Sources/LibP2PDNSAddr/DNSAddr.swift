@@ -308,13 +308,13 @@ extension DNSAddr {
         self._client.withLockedValue { $0 = client }
     }
 
-    public func willShutdown(_ application: Application) {
+    public func shutdown(_ application: Application) {
         self.logger.trace("Shutting Down")
         self.client?.cancelQueries()
         let _ = self.client?.close()
     }
 
-    public func willShutdownAsync(_ application: Application) async {
+    public func shutdownAsync(_ application: Application) async {
         self.logger.trace("Shutting Down")
         self.client?.cancelQueries()
         try? await self.client?.close().get()
