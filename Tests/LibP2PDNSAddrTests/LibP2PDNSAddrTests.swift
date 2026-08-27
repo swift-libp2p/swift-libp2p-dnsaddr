@@ -15,6 +15,7 @@
 import DNSClient
 import LibP2P
 import LibP2PTesting
+import NIOConcurrencyHelpers
 import Testing
 
 @testable import LibP2PDNSAddr
@@ -29,6 +30,44 @@ struct LibP2PDNSAddrTests {
         try await app.asyncShutdown()
     }
 
+    @Test func canResolveAddress() throws {
+        let resolvableAddresses = [
+            "/dns/region.example/tcp/1",
+            "/dns4/example.com/tcp/443/wss",
+            "/dns6/example.com/udp/4001/quic-v1",
+            "/dnsaddr/b.example",
+            "/dns/region.example/tcp/1/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
+            "/dns4/example.com/tcp/443/wss/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
+            "/dns6/example.com/udp/4001/quic-v1/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
+            "/dnsaddr/b.example/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
+        ]
+
+        let unresolvableAddresses = [
+            "/ip4/1.2.3.4/tcp/1",
+            "/ip6/::1/tcp/1",
+            "/ip4/1.2.3.4/tcp/1/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
+            "/ip6/::1/tcp/1/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
+            "/dns/region.local/tcp/1",
+            "/dns4/example.local/tcp/443/wss",
+            "/dns6/example.local/udp/4001/quic-v1",
+            "/dnsaddr/b.example.local",
+            "/dns/region.example.local/tcp/1/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
+            "/dns4/example.local/tcp/443/wss/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
+            "/dns6/example.local/udp/4001/quic-v1/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
+            "/dnsaddr/b.example.local/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
+        ]
+
+        for address in resolvableAddresses {
+            let multiaddr = try Multiaddr(address)
+            #expect(DNSAddr.isResolvable(multiaddr))
+        }
+
+        for address in unresolvableAddresses {
+            let multiaddr = try Multiaddr(address)
+            #expect(DNSAddr.isResolvable(multiaddr) == false)
+        }
+    }
+
 }
 
 /// Deterministic, network-free tests for the recursive `dnsaddr` resolution logic.
@@ -36,7 +75,7 @@ struct LibP2PDNSAddrTests {
 /// These exercise ``DNSAddr/resolveConcreteAddresses(domain:peerID:maxDepth:fetch:)`` directly with a fake
 /// TXT-record `fetch`, so recursion, suffix matching, aggregation, de-duplication, and the depth/cycle guards
 /// can be verified without touching the network.
-@Suite("Libp2p DNSADDR Resolution Logic Tests")
+@Suite("Libp2p DNSADDR Resolution Logic Tests", .serialized)
 struct LibP2PDNSAddrResolutionLogicTests {
 
     static let peerA = "QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN"
@@ -223,6 +262,211 @@ struct LibP2PDNSAddrResolutionLogicTests {
     }
 }
 
+/// Deterministic tests for `Application.resolve`'s coalescing, TTL cache and per-resolver timeout.
+///
+/// These tests install a mock resolver instead of `DNSAddr` that records how many times we
+/// get called by `Application`.
+@Suite("Libp2p Address Resolution Cache Tests", .serialized)
+struct LibP2PResolutionCacheTests {
+
+    static let peerA = "QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN"
+
+    func address(_ domain: String) throws -> Multiaddr {
+        try Multiaddr("/dnsaddr/\(domain)/p2p/\(Self.peerA)")
+    }
+
+    /// Aggregation preserves the order a resolver reported its addresses in.
+    ///
+    /// That order carries intent — a peer's `dnsaddr` records list its preferred endpoints first, and
+    /// `resolve(_:for:)` hands back the first address matching the requested codecs — so it's asserted
+    /// exactly, here and in every other comparison against ``CountingResolver/addresses(for:)``.
+    @Test func testResolvedAddressesPreserveResolverOrder() async throws {
+        try await withCountingResolver { app, _ in
+            let ma = try self.address("ordered.example")
+            #expect(try await app.resolve(ma) == CountingResolver.addresses(for: ma))
+        }
+    }
+
+    /// Concurrent resolutions of the same address are coalesced into a single result
+    @Test func testConcurrentResolvesAreCoalesced() async throws {
+        try await withCountingResolver { app, resolver in
+            let ma = try self.address("coalesce.example")
+            // Slow enough that every task is waiting before the first resolution settles.
+            resolver.delay = .milliseconds(250)
+
+            let results = try await withThrowingTaskGroup(of: [Multiaddr]?.self) { group in
+                for _ in 0..<8 { group.addTask { try await app.resolve(ma) } }
+                var results: [[Multiaddr]?] = []
+                for try await result in group { results.append(result) }
+                return results
+            }
+
+            #expect(results.count == 8)
+            #expect(results.allSatisfy { $0 == CountingResolver.addresses(for: ma) })
+            // Eight callers, one resolution.
+            #expect(resolver.calls(for: ma) == 1)
+        }
+    }
+
+    /// Coalescing is per address, two different addresses resolved concurrently are both resolved.
+    @Test func testConcurrentResolvesOfDifferentAddressesAreNotCoalesced() async throws {
+        try await withCountingResolver { app, resolver in
+            let first = try self.address("one.example")
+            let second = try self.address("two.example")
+            resolver.delay = .milliseconds(100)
+
+            async let a = app.resolve(first)
+            async let b = app.resolve(second)
+            _ = try await (a, b)
+
+            #expect(resolver.calls(for: first) == 1)
+            #expect(resolver.calls(for: second) == 1)
+        }
+    }
+
+    /// A repeat resolution inside the TTL is served from the cache without touching the resolver.
+    @Test func testRepeatResolveIsServedFromCache() async throws {
+        try await withCountingResolver(cacheTTL: .minutes(5)) { app, resolver in
+            let ma = try self.address("cached.example")
+
+            let first = try await app.resolve(ma)
+            let second = try await app.resolve(ma)
+
+            #expect(first == second)
+            #expect(second == CountingResolver.addresses(for: ma))
+            #expect(resolver.calls(for: ma) == 1)
+        }
+    }
+
+    /// Once the TTL lapses the entry is no longer served and the address is resolved again.
+    @Test func testCacheEntryExpiresAfterTTL() async throws {
+        try await withCountingResolver(cacheTTL: .milliseconds(200)) { app, resolver in
+            let ma = try self.address("expiring.example")
+
+            _ = try await app.resolve(ma)
+            #expect(resolver.calls(for: ma) == 1)
+
+            try await Task.sleep(nanoseconds: 400_000_000)
+
+            _ = try await app.resolve(ma)
+            #expect(resolver.calls(for: ma) == 2)
+        }
+    }
+
+    /// `skipCache` forces a fresh resolution, and the result it produces becomes the new cache entry.
+    @Test func testSkipCacheForcesFreshResolution() async throws {
+        try await withCountingResolver(cacheTTL: .minutes(5)) { app, resolver in
+            let ma = try self.address("skip.example")
+
+            _ = try await app.resolve(ma)
+            #expect(resolver.calls(for: ma) == 1)
+
+            let fresh = try await app.resolve(ma, skipCache: true)
+            #expect(fresh == CountingResolver.addresses(for: ma))
+            #expect(resolver.calls(for: ma) == 2)
+
+            // The fresh resolution replaced the entry it bypassed, so we're cached again.
+            _ = try await app.resolve(ma)
+            #expect(resolver.calls(for: ma) == 2)
+        }
+    }
+
+    /// `clearCache()` is the manual prune, every completed entry is dropped.
+    @Test func testClearCacheDropsCachedEntries() async throws {
+        try await withCountingResolver(cacheTTL: .minutes(5)) { app, resolver in
+            let first = try self.address("clear-one.example")
+            let second = try self.address("clear-two.example")
+
+            _ = try await app.resolve(first)
+            _ = try await app.resolve(second)
+            #expect(resolver.totalCalls == 2)
+
+            app.resolvers.clearCache()
+
+            _ = try await app.resolve(first)
+            _ = try await app.resolve(second)
+            #expect(resolver.totalCalls == 4)
+        }
+    }
+
+    /// The cache is bounded, so a long lived host can't grow it without limit. Exceeding the bound evicts the
+    /// entries closest to expiry, even though their TTL hasn't lapsed, while recent entries survive.
+    @Test func testCacheEvictsEntriesClosestToExpiryWhenFull() async throws {
+        try await withCountingResolver(cacheTTL: .minutes(5)) { app, resolver in
+            // The oldest entry, and so the first one up for eviction.
+            let oldest = try self.address("oldest.example")
+            _ = try await app.resolve(oldest)
+            #expect(resolver.calls(for: oldest) == 1)
+
+            // Push the cache past its 256 entry bound. Pruning happens as later resolutions are claimed.
+            for i in 0..<300 {
+                _ = try await app.resolve(try self.address("host-\(i).example"))
+            }
+
+            // A recently resolved address is still cached...
+            let newest = try self.address("host-299.example")
+            _ = try await app.resolve(newest)
+            #expect(resolver.calls(for: newest) == 1)
+
+            // ...while the oldest one was evicted despite its five minute TTL.
+            _ = try await app.resolve(oldest)
+            #expect(resolver.calls(for: oldest) == 2)
+        }
+    }
+
+    /// A resolver that takes longer than `timeout` doesn't hold up the caller, and the abandoned attempt
+    /// isn't cached as a negative result.
+    @Test func testSlowResolverTimesOut() async throws {
+        try await withCountingResolver { app, resolver in
+            let ma = try self.address("slow.example")
+            resolver.delay = .seconds(5)
+
+            let start = NIODeadline.now()
+            let resolved = try await app.resolve(ma, timeout: .milliseconds(100))
+            let elapsed = NIODeadline.now() - start
+
+            #expect(resolved == nil)
+            #expect(elapsed < .milliseconds(2500))
+
+            // Nothing was cached, so a subsequent resolution succeeds.
+            resolver.delay = .zero
+            #expect(try await app.resolve(ma) == CountingResolver.addresses(for: ma))
+            #expect(resolver.calls(for: ma) == 2)
+        }
+    }
+
+    /// A failing resolver yields `nil` rather than an error, and the failure isn't cached, the next caller
+    /// retries instead of inheriting a negative result for the full TTL.
+    @Test func testFailedResolutionIsNotCached() async throws {
+        try await withCountingResolver(cacheTTL: .minutes(5)) { app, resolver in
+            let ma = try self.address("failing.example")
+            resolver.fails = true
+
+            #expect(try await app.resolve(ma) == nil)
+            #expect(resolver.calls(for: ma) == 1)
+
+            resolver.fails = false
+            #expect(try await app.resolve(ma) == CountingResolver.addresses(for: ma))
+            #expect(resolver.calls(for: ma) == 2)
+        }
+    }
+
+    /// Resolved addresses are published to the peerstore under the peer id they were filed against.
+    @Test func testResolvedAddressesArePublishedToPeerStore() async throws {
+        try await withCountingResolver { app, _ in
+            let ma = try self.address("peerstore.example")
+            let pid = try ma.getPeerID()
+            // The peerstore only holds addresses for peers it knows about.
+            try await app.peers.add(key: pid)
+
+            let resolved = try #require(try await app.resolve(ma))
+
+            let stored = try await app.peers.getAddresses(forPeer: pid)
+            #expect(Set(stored).isSuperset(of: Set(resolved)))
+        }
+    }
+}
+
 /// Live, network-dependent resolution tests against the public libp2p bootstrap nodes.
 ///
 /// - Note: These require outbound DNS and depend on records the libp2p project controls, so assertions check
@@ -230,13 +474,15 @@ struct LibP2PDNSAddrResolutionLogicTests {
 @Suite("Libp2p DNSADDR Resolution Tests (live)", .serialized)
 struct LibP2PDNSAddrLiveResolutionTests {
 
+    static let peerA = "QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN"
+
     @Test(arguments: [
         "/dnsaddr/bootstrap.libp2p.io/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
         "/dnsaddr/bootstrap.libp2p.io/p2p/QmQCU2EcMqAqQPR2i9bChDtGNJchTbq5TbXJJ16u19uLTa",
         "/dnsaddr/bootstrap.libp2p.io/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb",
         "/dnsaddr/bootstrap.libp2p.io/p2p/QmcZf59bWwK5XFi76CZX8cbJ4BhTzzA3gU1ZjYZcYW3dwt",
     ])
-    func testDNSADDRResolvesToConcreteAddresses(_ address: String) async throws {
+    func testDNSADDRResolvesToDialableAddresses(_ address: String) async throws {
         try await withApp(configure: configured()) { app in
             let ma = try Multiaddr(address)
             let expectedPeerID = try ma.getPeerID()
@@ -370,5 +616,105 @@ private func configured(maxRecursionDepth: Int? = nil) -> ((Application) async t
     { app in
         let cloudflareDNS = try SocketAddress(ipAddress: "1.1.1.1", port: 53)
         app.resolvers.use(.dnsaddr(host: cloudflareDNS, maxRecursionDepth: maxRecursionDepth))
+    }
+}
+
+/// An `AddressResolver` stand-in that answers from a fixed template and records how many times it was asked.
+///
+/// Because `app.resolve` coalesces and caches, the only way to tell a cache hit from a fresh resolution is to
+/// count the resolutions the resolver was actually asked to perform — which is what this exists for. Its
+/// latency and failure mode are settable so timeouts and non-cached failures can be exercised too.
+final class CountingResolver: AddressResolver {
+
+    static let key: String = "COUNTING"
+
+    enum Failure: Error { case requested }
+
+    private struct Behavior {
+        var delay: TimeAmount = .zero
+        var fails: Bool = false
+        var calls: [Multiaddr: Int] = [:]
+    }
+
+    private let eventLoop: EventLoop
+    private let behavior: NIOLockedValueBox<Behavior>
+
+    init(application: Application) {
+        self.eventLoop = application.eventLoopGroup.next()
+        self.behavior = .init(.init())
+    }
+
+    // MARK: Test controls
+
+    /// How long the resolver takes to answer.
+    var delay: TimeAmount {
+        get { self.behavior.withLockedValue { $0.delay } }
+        set { self.behavior.withLockedValue { $0.delay = newValue } }
+    }
+
+    /// When `true`, every resolution fails with ``Failure/requested``.
+    var fails: Bool {
+        get { self.behavior.withLockedValue { $0.fails } }
+        set { self.behavior.withLockedValue { $0.fails = newValue } }
+    }
+
+    /// The number of resolutions this resolver was asked to perform for `ma`.
+    func calls(for ma: Multiaddr) -> Int {
+        self.behavior.withLockedValue { $0.calls[ma] ?? 0 }
+    }
+
+    /// The number of resolutions this resolver was asked to perform, across every address.
+    var totalCalls: Int {
+        self.behavior.withLockedValue { $0.calls.values.reduce(0, +) }
+    }
+
+    /// The addresses this resolver answers with, preserving any `/p2p/<id>` suffix so that resolved addresses
+    /// can be filed in the peerstore.
+    static func addresses(for ma: Multiaddr) -> [Multiaddr] {
+        let peerID = try? ma.getPeerID().b58String
+        return ["/ip4/1.2.3.4/tcp/4001", "/ip4/5.6.7.8/udp/4001/quic-v1"].compactMap { base in
+            try? Multiaddr(peerID.map { "\(base)/p2p/\($0)" } ?? base)
+        }
+    }
+
+    // MARK: AddressResolver
+
+    func can(resolve ma: Multiaddr) -> Bool {
+        DNSAddr.isResolvable(ma)
+    }
+
+    func resolve(multiaddr ma: Multiaddr) -> EventLoopFuture<[Multiaddr]?> {
+        let (delay, fails) = self.behavior.withLockedValue { behavior -> (TimeAmount, Bool) in
+            behavior.calls[ma, default: 0] += 1
+            return (behavior.delay, behavior.fails)
+        }
+
+        let answer: @Sendable () throws -> [Multiaddr]? = {
+            if fails { throw Failure.requested }
+            return Self.addresses(for: ma)
+        }
+
+        guard delay > .zero else { return self.eventLoop.submit(answer) }
+        return self.eventLoop.scheduleTask(in: delay, answer).futureResult
+    }
+}
+
+/// Runs `test` against an application whose only resolver is a ``CountingResolver``.
+private func withCountingResolver<T>(
+    cacheTTL: TimeAmount? = nil,
+    _ test: (Application, CountingResolver) async throws -> T
+) async throws -> T {
+    let box = NIOLockedValueBox<CountingResolver?>(nil)
+    let configuration: ((Application) async throws -> Void) = { app in
+        app.resolvers.use { application in
+            let resolver = CountingResolver(application: application)
+            box.withLockedValue { $0 = resolver }
+            return resolver
+        }
+        if let cacheTTL { app.resolvers.cacheTTL = cacheTTL }
+    }
+    return try await withApp(configure: configuration) { app in
+        let resolver = try #require(box.withLockedValue { $0 })
+        return try await test(app, resolver)
     }
 }
