@@ -34,6 +34,23 @@ public final class DNSAddr: AddressResolver, LifecycleHandler {
 
     public static let key: String = "DNSADDR"
 
+    /// A list of codecs that we know how to resolve
+    static let ResolvableCodecs: Set<MultiaddrProtocol> = [.dns, .dns4, .dns6, .dnsaddr]
+
+    /// Helper method to determine if the given Multiaddr is one that we can resolve
+    static func isResolvable(_ ma: Multiaddr) -> Bool {
+        guard let root = ma.addresses.first else {
+            return false
+        }
+        guard Self.ResolvableCodecs.contains(root.codec) else {
+            return false
+        }
+        guard let host = root.addr, !host.isEmpty, !host.hasSuffix(".local") else {
+            return false
+        }
+        return true
+    }
+
     public enum Errors: Error {
         case clientNotInitialized
         case invalidMultiaddr
@@ -278,6 +295,11 @@ extension DNSAddr {
         self.eventLoop.makeFutureWithTask {
             try await self.resolveMatching(multiaddr: ma, for: codecs)
         }
+    }
+
+    /// Wether or not we know how to resolve this address
+    public func can(resolve ma: Multiaddr) -> Bool {
+        Self.isResolvable(ma)
     }
 
     /// Resolves a DNS-based Multiaddr into all of its underlying addresses. For `/dnsaddr`, resolution is
