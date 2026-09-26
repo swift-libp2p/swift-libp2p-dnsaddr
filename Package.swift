@@ -1,9 +1,9 @@
-// swift-tools-version: 6.0
+// swift-tools-version: 6.1
 //===----------------------------------------------------------------------===//
 //
 // This source file is part of the swift-libp2p open source project
 //
-// Copyright (c) 2022-2025 swift-libp2p project authors
+// Copyright (c) 2022-2026 swift-libp2p project authors
 // Licensed under MIT
 //
 // See LICENSE for license information
@@ -19,7 +19,7 @@ let package = Package(
     name: "swift-libp2p-dnsaddr",
     platforms: [
         .macOS(.v13),
-        .iOS(.v13),
+        .iOS(.v16),
     ],
     products: [
         // Products define the executables and libraries a package produces, and make them visible to other packages.
@@ -31,8 +31,8 @@ let package = Package(
     dependencies: [
         // Dependencies declare other packages that this package depends on.
 
-        // LibP2P Core Modules
-        .package(url: "https://github.com/swift-libp2p/swift-libp2p.git", .upToNextMinor(from: "0.3.13")),
+        // LibP2P
+        .package(url: "https://github.com/swift-libp2p/swift-libp2p.git", .upToNextMinor(from: "0.4.0")),
 
         // DNS + NIO
         .package(url: "https://github.com/orlandos-nl/DNSClient.git", .upToNextMajor(from: "2.6.0")),
