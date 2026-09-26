@@ -68,6 +68,125 @@ struct LibP2PDNSAddrTests {
         }
     }
 
+    @Test func canResolveAddressThroughApplication() async throws {
+        let resolvableAddresses = [
+            "/dns/region.example/tcp/1",
+            "/dns4/example.com/tcp/443/wss",
+            "/dns6/example.com/udp/4001/quic-v1",
+            "/dnsaddr/b.example",
+            "/dns/region.example/tcp/1/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
+            "/dns4/example.com/tcp/443/wss/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
+            "/dns6/example.com/udp/4001/quic-v1/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
+            "/dnsaddr/b.example/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
+        ]
+
+        let unresolvableAddresses = [
+            "/ip4/1.2.3.4/tcp/1",
+            "/ip6/::1/tcp/1",
+            "/ip4/1.2.3.4/tcp/1/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
+            "/ip6/::1/tcp/1/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
+            "/dns/region.local/tcp/1",
+            "/dns4/example.local/tcp/443/wss",
+            "/dns6/example.local/udp/4001/quic-v1",
+            "/dnsaddr/b.example.local",
+            "/dns/region.example.local/tcp/1/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
+            "/dns4/example.local/tcp/443/wss/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
+            "/dns6/example.local/udp/4001/quic-v1/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
+            "/dnsaddr/b.example.local/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
+        ]
+
+        let configure: ((Application) async throws -> Void) = { app in
+            app.resolvers.use(.dnsaddr)
+        }
+
+        try await withApp(configure: configure) { app in
+            let mas = try resolvableAddresses.map { try Multiaddr($0) }
+            for ma in mas {
+                #expect(app.resolvers.can(resolve: ma))
+            }
+
+            let umas = try unresolvableAddresses.map { try Multiaddr($0) }
+            for ma in umas {
+                #expect(!app.resolvers.can(resolve: ma))
+            }
+        }
+    }
+
+    /// `app.transports.dialableAddress(_:)` keeps an address when an installed transport can dial it or an
+    /// installed resolver claims it can resolve it.
+    ///
+    /// - Note: This test is heavily dependent on swift-libp2p's internal logic and the results can change on us
+    ///   from version to version (hence the withKnownIssue wrapper).
+    @Test func applicationDialableAddresses() async throws {
+        await withKnownIssue(isIntermittent: true) {
+            // Dialable by the default TCP client alone, no resolver required.
+            let dialableAddresses = [
+                "/ip4/1.2.3.4/tcp/4001",
+                "/ip4/1.2.3.4/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
+                "/dns/region.example/tcp/4001",
+                "/dns/region.example/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
+                "/dns4/example.com/tcp/4001",
+                "/dns4/example.com/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
+            ]
+
+            // Rejected by the default transport, but claimed by DNSAddr once it's installed.
+            let dialableOnlyWithResolverInstalled = [
+                // `/dnsaddr` is rejected until our resolver can expand its TXT records.
+                "/dnsaddr/b.example",
+                "/dnsaddr/b.example/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
+                // `/dns6`, the TCP client can't dial IPv6, but DNSAddr still resolves the name.
+                "/dns6/example.com/tcp/4001",
+                "/dns6/example.com/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
+                // `/ws` and `/quic-v1` have no transport installed, but the `/dns*` name is still resolvable.
+                "/dns4/example.com/tcp/443/ws",
+                "/dns/example.com/udp/4001/quic-v1",
+                "/dns6/example.com/udp/4001/quic-v1/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
+            ]
+
+            // Dialable by neither, no transport accepts them and DNSAddr won't resolve them either.
+            let undialableAddresses = [
+                // No IPv6 support in the TCP client.
+                "/ip6/2001:db8::2/tcp/4001",
+                "/ip6/2001:db8::2/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
+                // No QUIC transport, and a literal IP has nothing to resolve.
+                "/ip4/1.2.3.4/udp/4001/quic-v1",
+                "/ip4/1.2.3.4/udp/4001/quic-v1/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
+                // Internal addresses are dropped by default even though the TCP client can dial them.
+                "/ip4/127.0.0.1/tcp/4001",
+                "/ip4/192.168.1.5/tcp/4001",
+                // `.local` names are refused by DNSAddr, and these transports are unsupported anyways.
+                "/dns6/example.local/tcp/4001",
+                "/dns4/example.local/tcp/443/ws",
+                "/dnsaddr/b.example.local",
+                "/dnsaddr/b.example.local/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
+            ]
+
+            // Compare the results via a Set so order doesn't matter
+            func expectDialable(_ addresses: [String], _ app: Application, _ expected: Bool) throws {
+                let mas = try addresses.map { try Multiaddr($0) }
+                let dialable = Set(app.transports.dialableAddress(mas))
+                #expect(dialable == (expected ? Set(mas) : []))
+            }
+
+            // Without DNSADDR installed
+            try await withApp { app in
+                try expectDialable(dialableAddresses, app, true)
+                try expectDialable(dialableOnlyWithResolverInstalled, app, false)
+                try expectDialable(undialableAddresses, app, false)
+            }
+
+            let configure: ((Application) async throws -> Void) = { app in
+                app.resolvers.use(.dnsaddr)
+            }
+
+            // With DNSADDR installed
+            try await withApp(configure: configure) { app in
+                try expectDialable(dialableAddresses, app, true)
+                try expectDialable(dialableOnlyWithResolverInstalled, app, true)
+                try expectDialable(undialableAddresses, app, false)
+            }
+        }
+    }
 }
 
 /// Deterministic, network-free tests for the recursive `dnsaddr` resolution logic.
@@ -487,7 +606,7 @@ struct LibP2PDNSAddrLiveResolutionTests {
             let ma = try Multiaddr(address)
             let expectedPeerID = try ma.getPeerID()
 
-            guard let resolved = try await app.resolve(ma).get() else {
+            guard let resolved = try await app.resolve(ma) else {
                 Issue.record("No resolved Multiaddr for \(address)")
                 return
             }
@@ -514,14 +633,14 @@ struct LibP2PDNSAddrLiveResolutionTests {
         try await withApp(configure: configured(maxRecursionDepth: 1)) { app in
             let ma = try Multiaddr(address)
 
-            #expect(try await app.resolve(ma).get() == nil)
+            #expect(try await app.resolve(ma) == nil)
         }
     }
 
     @Test func testAlreadyResolvedAddressReturnsNil() async throws {
         try await withApp(configure: configured()) { app in
             let ma = try Multiaddr("/ip4/104.131.131.82/tcp/4001/p2p/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ")
-            let resolved = try await app.resolve(ma).get()
+            let resolved = try await app.resolve(ma)
             #expect(resolved == nil)
         }
     }
@@ -532,7 +651,7 @@ struct LibP2PDNSAddrLiveResolutionTests {
             let ma = try Multiaddr(address)
             let requested: Set<MultiaddrProtocol> = [.dns, .tcp]
 
-            guard let resolved = try await app.resolve(ma, for: requested).get() else {
+            guard let resolved = try await app.resolve(ma, for: requested) else {
                 Issue.record("No address resolved for requested transports \(requested)")
                 return
             }
